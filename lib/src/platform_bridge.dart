@@ -17,7 +17,8 @@ String defaultRoot() {
   final env = Platform.environment['DOSYA_DOLABI_KOK'];
   if (env != null && env.isNotEmpty) return env;
   if (Platform.isAndroid) return '$_androidBase/Dosya Dolabı';
-  final home = Platform.environment['USERPROFILE'] ??
+  final home =
+      Platform.environment['USERPROFILE'] ??
       Platform.environment['HOME'] ??
       Directory.systemTemp.path;
   return p.join(home, 'Documents', 'Dosya Dolabı');
@@ -46,7 +47,9 @@ List<String> defaultInboxDirs() {
       for (final e in Directory('/storage').listSync()) {
         final name = p.basename(e.path);
         if (e is Directory && name != 'emulated' && name != 'self') {
-          dirs..add('${e.path}/Download')..add('${e.path}/Documents');
+          dirs
+            ..add('${e.path}/Download')
+            ..add('${e.path}/Documents');
         }
       }
     } on FileSystemException {
@@ -54,9 +57,8 @@ List<String> defaultInboxDirs() {
     }
     return dirs;
   }
-  final home = Platform.environment['USERPROFILE'] ??
-      Platform.environment['HOME'] ??
-      '';
+  final home =
+      Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? '';
   return home.isEmpty ? [] : [p.join(home, 'Downloads')];
 }
 
@@ -97,10 +99,11 @@ Future<OpenResult> openFile(
 }) async {
   try {
     if (Platform.isAndroid) {
-      final r = await _channel.invokeMethod<String>(
-        'open',
-        {'path': path, 'mime': mime, 'chooser': chooser},
-      );
+      final r = await _channel.invokeMethod<String>('open', {
+        'path': path,
+        'mime': mime,
+        'chooser': chooser,
+      });
       return r == 'no_app' ? OpenResult.noApp : OpenResult.ok;
     }
     if (Platform.isWindows) {

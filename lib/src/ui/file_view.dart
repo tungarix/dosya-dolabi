@@ -6,6 +6,7 @@ import '../platform_bridge.dart';
 import '../state.dart';
 import '../text.dart';
 import 'dialogs.dart';
+import 'layout.dart';
 
 /// Açık yerdeki dosyalar (ve alt kategoriler): ızgara ya da liste.
 class FileView extends StatelessWidget {
@@ -152,26 +153,26 @@ class _Empty extends StatelessWidget {
         ? (
             Icons.search_off_rounded,
             'Sonuç yok',
-            '"${state.query.trim()}" ile eşleşen dosya bulunamadı.'
+            '"${state.query.trim()}" ile eşleşen dosya bulunamadı.',
           )
         : switch (state.place.section) {
             Section.inbox => (
-                Icons.inbox_rounded,
-                'Gelen Kutusu boş',
-                'İndirdiğin ya da aldığın yeni PDF ve sunum dosyaları burada '
-                    'görünür. Hepsini düzenledin!'
-              ),
+              Icons.inbox_rounded,
+              'Gelen Kutusu boş',
+              'İndirdiğin ya da aldığın yeni PDF ve sunum dosyaları burada '
+                  'görünür. Hepsini düzenledin!',
+            ),
             Section.all => (
-                Icons.folder_open_rounded,
-                'Dolap henüz boş',
-                'Gelen Kutusu\'ndaki dosyaları bir kategoriye koyduğunda '
-                    'burada görünür.'
-              ),
+              Icons.folder_open_rounded,
+              'Dolap henüz boş',
+              'Gelen Kutusu\'ndaki dosyaları bir kategoriye koyduğunda '
+                  'burada görünür.',
+            ),
             _ => (
-                Icons.folder_open_rounded,
-                'Bu kategori boş',
-                'Gelen Kutusu\'ndan dosya taşıyabilirsin.'
-              ),
+              Icons.folder_open_rounded,
+              'Bu kategori boş',
+              'Gelen Kutusu\'ndan dosya taşıyabilirsin.',
+            ),
           };
     return RefreshIndicator(
       onRefresh: state.refresh,
@@ -208,7 +209,11 @@ class _Empty extends StatelessWidget {
 
 // ------------------------------------------------------------ dosya işlemleri
 
-Future<void> openDoc(BuildContext context, DocFile f, {bool chooser = false}) async {
+Future<void> openDoc(
+  BuildContext context,
+  DocFile f, {
+  bool chooser = false,
+}) async {
   final r = await openFile(f.path, mimeOf(f.path), chooser: chooser);
   if (!context.mounted) return;
   switch (r) {
@@ -225,14 +230,15 @@ Future<void> openDoc(BuildContext context, DocFile f, {bool chooser = false}) as
         ),
       );
     case OpenResult.failed:
-      showOutcome(
-        context,
-        const Outcome('Dosya açılamadı', isError: true),
-      );
+      showOutcome(context, const Outcome('Dosya açılamadı', isError: true));
   }
 }
 
-Future<void> moveDocs(BuildContext context, DolapState state, List<DocFile> files) async {
+Future<void> moveDocs(
+  BuildContext context,
+  DolapState state,
+  List<DocFile> files,
+) async {
   final to = await pickCategory(
     context,
     state,
@@ -244,11 +250,19 @@ Future<void> moveDocs(BuildContext context, DolapState state, List<DocFile> file
   runAndShow(context, state.moveFiles(files, to));
 }
 
-Future<void> trashDocs(BuildContext context, DolapState state, List<DocFile> files) async {
+Future<void> trashDocs(
+  BuildContext context,
+  DolapState state,
+  List<DocFile> files,
+) async {
   runAndShow(context, state.trashFiles(files));
 }
 
-Future<void> renameDoc(BuildContext context, DolapState state, DocFile f) async {
+Future<void> renameDoc(
+  BuildContext context,
+  DolapState state,
+  DocFile f,
+) async {
   final name = await promptName(
     context,
     title: 'Dosyanın adını değiştir',
@@ -302,7 +316,9 @@ class _FileMenu extends StatelessWidget {
           value: _FileAction.move,
           child: ListTile(
             leading: const Icon(Icons.drive_file_move_outlined),
-            title: Text(file.inLibrary ? 'Başka kategoriye taşı…' : 'Kategoriye koy…'),
+            title: Text(
+              file.inLibrary ? 'Başka kategoriye taşı…' : 'Kategoriye koy…',
+            ),
           ),
         ),
         const PopupMenuItem(
@@ -360,9 +376,8 @@ class _FileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final selected = state.selected.contains(file.path);
-    final sub = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: cs.onSurfaceVariant,
-        );
+    final sub = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: cs.onSurfaceVariant);
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
@@ -375,8 +390,9 @@ class _FileCard extends StatelessWidget {
             : BorderSide.none,
       ),
       child: InkWell(
-        onTap: () =>
-            state.selecting ? state.toggleSelected(file.path) : openDoc(context, file),
+        onTap: () => state.selecting
+            ? state.toggleSelected(file.path)
+            : openDoc(context, file),
         onLongPress: () => state.toggleSelected(file.path),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 4, 8),
@@ -468,6 +484,7 @@ class _FileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final compact = isCompact(context);
     final selected = state.selected.contains(file.path);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -483,18 +500,27 @@ class _FileRow extends StatelessWidget {
             if (showWhere) state.whereIs(file),
             formatDate(file.modified),
           ].join(' · '),
-          maxLines: 1,
+          // Telefonda tarih ve konum kesilmesin diye iki satıra izin ver.
+          maxLines: compact ? 2 : 1,
           overflow: TextOverflow.ellipsis,
         ),
         trailing: state.selecting
             ? Icon(
-                selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked,
                 color: selected ? cs.primary : cs.outline,
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!file.inLibrary)
+                  if (!file.inLibrary && compact)
+                    IconButton.filledTonal(
+                      tooltip: 'Kategoriye koy',
+                      icon: const Icon(Icons.drive_file_move_rounded),
+                      onPressed: () => moveDocs(context, state, [file]),
+                    )
+                  else if (!file.inLibrary)
                     FilledButton.tonalIcon(
                       onPressed: () => moveDocs(context, state, [file]),
                       icon: const Icon(Icons.drive_file_move_rounded, size: 18),
@@ -503,8 +529,9 @@ class _FileRow extends StatelessWidget {
                   _FileMenu(state: state, file: file),
                 ],
               ),
-        onTap: () =>
-            state.selecting ? state.toggleSelected(file.path) : openDoc(context, file),
+        onTap: () => state.selecting
+            ? state.toggleSelected(file.path)
+            : openDoc(context, file),
         onLongPress: () => state.toggleSelected(file.path),
       ),
     );

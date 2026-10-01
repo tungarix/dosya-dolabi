@@ -199,10 +199,14 @@ class _PickerDialogState extends State<_PickerDialog> {
     final o = await s.createCategory(parent, name);
     if (!mounted) return;
     if (o.isError) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(o.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(o.message)));
       return;
     }
-    final created = s.snap!.categories.map((c) => c.path).toSet().difference(before);
+    final created = s.snap!.categories
+        .map((c) => c.path)
+        .toSet()
+        .difference(before);
     // Yeni kategoriyi doğrudan seçilmiş say: kullanıcı zaten onu istiyordu.
     if (created.isNotEmpty) Navigator.pop(context, created.first);
   }
@@ -213,7 +217,9 @@ class _PickerDialogState extends State<_PickerDialog> {
     final q = fold(_filter.trim());
     final all = snap.categories.where((c) {
       final ex = widget.exclude;
-      if (ex != null && (c.path == ex || c.path.startsWith('$ex/'))) return false;
+      if (ex != null && (c.path == ex || c.path.startsWith('$ex/'))) {
+        return false;
+      }
       return q.isEmpty || fold(c.path).contains(q);
     }).toList();
     final cs = Theme.of(context).colorScheme;
@@ -246,8 +252,14 @@ class _PickerDialogState extends State<_PickerDialog> {
                 onTap: () => Navigator.pop(context, ''),
               ),
             ListTile(
-              leading: Icon(Icons.create_new_folder_outlined, color: cs.primary),
-              title: Text('Yeni kategori…', style: TextStyle(color: cs.primary)),
+              leading: Icon(
+                Icons.create_new_folder_outlined,
+                color: cs.primary,
+              ),
+              title: Text(
+                'Yeni kategori…',
+                style: TextStyle(color: cs.primary),
+              ),
               onTap: () => _create(''),
             ),
             const Divider(height: 1),
@@ -255,7 +267,9 @@ class _PickerDialogState extends State<_PickerDialog> {
               child: all.isEmpty
                   ? Center(
                       child: Text(
-                        q.isEmpty ? 'Henüz kategori yok' : 'Eşleşen kategori yok',
+                        q.isEmpty
+                            ? 'Henüz kategori yok'
+                            : 'Eşleşen kategori yok',
                         style: TextStyle(color: cs.onSurfaceVariant),
                       ),
                     )
@@ -265,7 +279,10 @@ class _PickerDialogState extends State<_PickerDialog> {
                         final c = all[i];
                         final depth = c.path.split('/').length - 1;
                         return ListTile(
-                          contentPadding: EdgeInsets.only(left: 24.0 + depth * 20, right: 8),
+                          contentPadding: EdgeInsets.only(
+                            left: 24.0 + depth * 20,
+                            right: 8,
+                          ),
                           leading: const Icon(Icons.folder_outlined),
                           title: Text(c.name),
                           subtitle: depth > 0 && q.isNotEmpty

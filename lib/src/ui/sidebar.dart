@@ -61,7 +61,7 @@ class Sidebar extends StatelessWidget {
       body: c.totalFiles == 0 && c.children.isEmpty
           ? 'Bu kategori boş.'
           : 'İçindeki dosyalar ve alt kategoriler silinmez; bir üst kategoriye '
-              'taşınır.',
+                'taşınır.',
       confirmText: 'Sil',
       destructive: true,
     );
@@ -85,14 +85,17 @@ class Sidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
               child: Row(
                 children: [
-                  Icon(Icons.folder_special_rounded, color: cs.primary, size: 28),
+                  Icon(
+                    Icons.folder_special_rounded,
+                    color: cs.primary,
+                    size: 28,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Dosya Dolabı',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -121,9 +124,9 @@ class Sidebar extends StatelessWidget {
                     child: Text(
                       'KATEGORİLER',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: cs.onSurfaceVariant,
-                            letterSpacing: 1,
-                          ),
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -139,9 +142,7 @@ class Sidebar extends StatelessWidget {
                   ? _EmptyTree(state: state)
                   : ListView(
                       padding: const EdgeInsets.only(bottom: 8),
-                      children: [
-                        for (final c in cats) ..._rows(context, c, 0),
-                      ],
+                      children: [for (final c in cats) ..._rows(context, c, 0)],
                     ),
             ),
             const Divider(height: 1),
@@ -159,7 +160,11 @@ class Sidebar extends StatelessWidget {
     );
   }
 
-  Iterable<Widget> _rows(BuildContext context, CategoryNode c, int depth) sync* {
+  Iterable<Widget> _rows(
+    BuildContext context,
+    CategoryNode c,
+    int depth,
+  ) sync* {
     final open = state.expanded.contains(c.path);
     yield _CategoryRow(
       category: c,
@@ -222,8 +227,8 @@ class _NavTile extends StatelessWidget {
         trailing: count == 0
             ? null
             : highlight
-                ? Badge(label: Text('$count'), backgroundColor: cs.primary)
-                : Text('$count', style: TextStyle(color: cs.onSurfaceVariant)),
+            ? Badge(label: Text('$count'), backgroundColor: cs.primary)
+            : Text('$count', style: TextStyle(color: cs.onSurfaceVariant)),
         onTap: onTap,
       ),
     );
@@ -355,7 +360,13 @@ class _EmptyTree extends StatelessWidget {
   const _EmptyTree({required this.state});
   final DolapState state;
 
-  static const _starters = ['Dersler', 'İş', 'Kişisel', 'Faturalar', 'Sunumlar'];
+  static const _starters = [
+    'Dersler',
+    'İş',
+    'Kişisel',
+    'Faturalar',
+    'Sunumlar',
+  ];
 
   @override
   Widget build(BuildContext context) {

@@ -160,8 +160,10 @@ class Library {
         final name = p.basename(e.path);
         if (name.startsWith('.')) continue;
         if (e is Directory) {
-          final child =
-              CategoryNode(c.path.isEmpty ? name : '${c.path}/$name', e.path);
+          final child = CategoryNode(
+            c.path.isEmpty ? name : '${c.path}/$name',
+            e.path,
+          );
           await _scanCategory(child);
           c.children.add(child);
         } else if (e is File) {
@@ -348,8 +350,11 @@ class Library {
     for (final m in moves.reversed) {
       try {
         final isDir = FileSystemEntity.isDirectorySync(m.to);
-        final to =
-            _uniquePath(p.dirname(m.from), p.basename(m.from), isDir: isDir);
+        final to = _uniquePath(
+          p.dirname(m.from),
+          p.basename(m.from),
+          isDir: isDir,
+        );
         if (isDir) {
           await Directory(p.dirname(to)).create(recursive: true);
           await Directory(m.to).rename(to);
@@ -440,7 +445,7 @@ class Library {
       final st = await e.stat();
       final at =
           (meta is Map ? DateTime.tryParse('${meta['at']}') : null) ??
-              st.modified;
+          st.modified;
       final from = meta is Map && meta['from'] is String
           ? meta['from'] as String
           : p.join(root, name);
@@ -450,12 +455,14 @@ class Library {
         changed = true;
         continue;
       }
-      items.add(TrashItem(
-        path: e.path,
-        originalPath: from,
-        deletedAt: at,
-        size: st.size,
-      ));
+      items.add(
+        TrashItem(
+          path: e.path,
+          originalPath: from,
+          deletedAt: at,
+          size: st.size,
+        ),
+      );
     }
     final before = index.length;
     index.removeWhere((k, _) => !File(p.join(trashDir, k)).existsSync());
@@ -499,9 +506,11 @@ class Library {
     var candidate = p.join(dir, name);
     if (!_exists(candidate)) return candidate;
     final ext = isDir ? '' : p.extension(name);
-    final base = (isDir ? name : p.basenameWithoutExtension(name))
-        .replaceFirst(RegExp(r' \(\d+\)$'), '');
-    for (var i = 2;; i++) {
+    final base = (isDir ? name : p.basenameWithoutExtension(name)).replaceFirst(
+      RegExp(r' \(\d+\)$'),
+      '',
+    );
+    for (var i = 2; ; i++) {
       candidate = p.join(dir, '$base ($i)$ext');
       if (!_exists(candidate)) return candidate;
     }

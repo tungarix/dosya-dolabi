@@ -220,7 +220,11 @@ class DolapState extends ChangeNotifier {
 
   /// Dosyanın bulunduğu yerin kullanıcıya gösterilen adı.
   String whereIs(DocFile f) {
-    if (f.inLibrary) return f.category!.isEmpty ? 'Kategorisiz' : f.category!.replaceAll('/', ' › ');
+    if (f.inLibrary) {
+      return f.category!.isEmpty
+          ? 'Kategorisiz'
+          : f.category!.replaceAll('/', ' › ');
+    }
     return p.basename(p.dirname(f.path));
   }
 
@@ -272,8 +276,8 @@ class DolapState extends ChangeNotifier {
         final n = r.moved.length;
         final msg = r.failed.isEmpty
             ? (n == 1
-                ? '"${p.basename(r.moved.single.to)}" → ${_label(category)}'
-                : '$n dosya "${_label(category)}" kategorisine taşındı')
+                  ? '"${p.basename(r.moved.single.to)}" → ${_label(category)}'
+                  : '$n dosya "${_label(category)}" kategorisine taşındı')
             : '$n dosya taşındı, ${r.failed.length} dosya taşınamadı';
         final o = await _undoable(msg, r.moved);
         return r.failed.isEmpty
@@ -282,31 +286,33 @@ class DolapState extends ChangeNotifier {
       });
 
   Future<Outcome> trashFiles(Iterable<DocFile> files) => _run(() async {
-        final r = await lib.trashFiles(files.map((f) => f.path));
-        selected.clear();
-        final n = r.moved.length;
-        final msg = r.failed.isEmpty
-            ? (n == 1 ? 'Dosya çöp kutusuna taşındı' : '$n dosya çöp kutusuna taşındı')
-            : '$n dosya silindi, ${r.failed.length} dosya silinemedi';
-        final o = await _undoable(msg, r.moved);
-        return r.failed.isEmpty
-            ? o
-            : Outcome(o.message, undo: o.undo, isError: true);
-      });
+    final r = await lib.trashFiles(files.map((f) => f.path));
+    selected.clear();
+    final n = r.moved.length;
+    final msg = r.failed.isEmpty
+        ? (n == 1
+              ? 'Dosya çöp kutusuna taşındı'
+              : '$n dosya çöp kutusuna taşındı')
+        : '$n dosya silindi, ${r.failed.length} dosya silinemedi';
+    final o = await _undoable(msg, r.moved);
+    return r.failed.isEmpty
+        ? o
+        : Outcome(o.message, undo: o.undo, isError: true);
+  });
 
   Future<Outcome> renameFile(DocFile f, String name) => _run(() async {
-        final to = await lib.renameFile(f.path, name);
-        selected.remove(f.path);
-        await refresh();
-        return Outcome('Adı "${p.basename(to)}" oldu');
-      });
+    final to = await lib.renameFile(f.path, name);
+    selected.remove(f.path);
+    await refresh();
+    return Outcome('Adı "${p.basename(to)}" oldu');
+  });
 
   Future<Outcome> createCategory(String parent, String name) => _run(() async {
-        final path = await lib.createCategory(parent, name);
-        reveal(path);
-        await refresh();
-        return Outcome('"${_label(path)}" kategorisi oluşturuldu');
-      });
+    final path = await lib.createCategory(parent, name);
+    reveal(path);
+    await refresh();
+    return Outcome('"${_label(path)}" kategorisi oluşturuldu');
+  });
 
   /// Yol değişince açık yeri ve açık dalları yeni yola uyarlar.
   void _remap(String from, String to) {
@@ -329,58 +335,59 @@ class DolapState extends ChangeNotifier {
   }
 
   Future<Outcome> renameCategory(String path, String name) => _run(() async {
-        final to = await lib.renameCategory(path, name);
-        if (to == path) return Outcome('Ad değişmedi');
-        _remap(path, to);
-        await refresh();
-        return Outcome('"${_label(to)}" olarak yeniden adlandırıldı');
-      });
+    final to = await lib.renameCategory(path, name);
+    if (to == path) return Outcome('Ad değişmedi');
+    _remap(path, to);
+    await refresh();
+    return Outcome('"${_label(to)}" olarak yeniden adlandırıldı');
+  });
 
-  Future<Outcome> moveCategory(String path, String newParent) =>
-      _run(() async {
-        final to = await lib.moveCategory(path, newParent);
-        if (to == path) return Outcome('Kategori zaten orada');
-        _remap(path, to);
-        reveal(to);
-        await refresh();
-        return Outcome('"${_label(to)}" taşındı');
-      });
+  Future<Outcome> moveCategory(String path, String newParent) => _run(() async {
+    final to = await lib.moveCategory(path, newParent);
+    if (to == path) return Outcome('Kategori zaten orada');
+    _remap(path, to);
+    reveal(to);
+    await refresh();
+    return Outcome('"${_label(to)}" taşındı');
+  });
 
   Future<Outcome> deleteCategory(String path) => _run(() async {
-        final moved = await lib.deleteCategory(path);
-        final parent = parentOf(path);
-        if (place.section == Section.category &&
-            (place.category == path || place.category.startsWith('$path/'))) {
-          place = parent.isEmpty ? const Place.all() : Place.category(parent);
-        }
-        return _undoable(
-          moved.isEmpty
-              ? '"${_label(path)}" kategorisi silindi'
-              : '"${_label(path)}" silindi, içindekiler bir üste taşındı',
-          moved,
-        );
-      });
+    final moved = await lib.deleteCategory(path);
+    final parent = parentOf(path);
+    if (place.section == Section.category &&
+        (place.category == path || place.category.startsWith('$path/'))) {
+      place = parent.isEmpty ? const Place.all() : Place.category(parent);
+    }
+    return _undoable(
+      moved.isEmpty
+          ? '"${_label(path)}" kategorisi silindi'
+          : '"${_label(path)}" silindi, içindekiler bir üste taşındı',
+      moved,
+    );
+  });
 
   Future<Outcome> restore(Iterable<TrashItem> items) => _run(() async {
-        final r = await lib.restore(items);
-        await refresh();
-        final n = r.moved.length;
-        if (r.failed.isNotEmpty) {
-          return Outcome('$n dosya geri konuldu, ${r.failed.length} dosya konulamadı',
-              isError: true);
-        }
-        return Outcome(n == 1 ? 'Dosya geri konuldu' : '$n dosya geri konuldu');
-      });
+    final r = await lib.restore(items);
+    await refresh();
+    final n = r.moved.length;
+    if (r.failed.isNotEmpty) {
+      return Outcome(
+        '$n dosya geri konuldu, ${r.failed.length} dosya konulamadı',
+        isError: true,
+      );
+    }
+    return Outcome(n == 1 ? 'Dosya geri konuldu' : '$n dosya geri konuldu');
+  });
 
   Future<Outcome> deleteForever(Iterable<TrashItem> items) => _run(() async {
-        await lib.deleteForever(items);
-        await refresh();
-        return const Outcome('Kalıcı olarak silindi');
-      });
+    await lib.deleteForever(items);
+    await refresh();
+    return const Outcome('Kalıcı olarak silindi');
+  });
 
   Future<Outcome> emptyTrash() => _run(() async {
-        await lib.emptyTrash();
-        await refresh();
-        return const Outcome('Çöp kutusu boşaltıldı');
-      });
+    await lib.emptyTrash();
+    await refresh();
+    return const Outcome('Çöp kutusu boşaltıldı');
+  });
 }

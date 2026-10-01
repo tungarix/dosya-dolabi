@@ -1,27 +1,31 @@
 # Dosya Dolabı
 
-> **Dosya Dolabı** ("File Cabinet") is an Android tablet app that sorts your PDFs,
-> slides and documents into categories that are real folders on the device.
-> Turkish UI, sideload-only (APK), no internet permission. Built with Flutter.
+> **Dosya Dolabı** ("File Cabinet") is an Android app, designed for tablets and
+> responsive on phones, that sorts your PDFs, slides and documents into
+> categories that are real folders on the device. Turkish UI, sideload-only
+> (APK), no internet permission. Built with Flutter.
 > Download the APK from [Releases](https://github.com/tungarix/dosya-dolabi/releases).
 
-Android tablet için PDF, slayt ve belge düzenleyici. İndirdiğin ya da aldığın
+Android tablet (ve telefon) için PDF, slayt ve belge düzenleyici. İndirdiğin ya da aldığın
 dosyalar **Gelen Kutusu**'nda birikir; sen her birini bir **kategoriye** koyarsın
-(ör. `Dersler › Matematik`). Kategoriler tabletinde **gerçek klasörlerdir**:
+(ör. `Dersler › Matematik`). Kategoriler cihazında **gerçek klasörlerdir**:
 dosyalar oraya taşınır, uygulama silinse bile yerinde kalır, Dosyalar
 uygulamasında da aynı düzenle görünür.
 
 ## Kurulum (APK)
 
 1. [Releases](https://github.com/tungarix/dosya-dolabi/releases) sayfasından
-   `Dosya-Dolabi-X.Y.Z.apk` dosyasını tabletine indir. İstersen release
+   `Dosya-Dolabi-X.Y.Z.apk` dosyasını cihazına indir. İstersen release
    notundaki SHA-256 ile dosyayı doğrula.
 2. Aç ve kur. Android "bilinmeyen kaynaklardan yükleme" izni isterse ver.
 3. İlk açılışta **İzin ver**'e bas, çıkan sayfada "Tüm dosyalara erişime izin
    ver" anahtarını aç ve uygulamaya dön.
 
-Sunum dosyalarını (`.pptx`) açmak için tabletinde WPS Office gibi bir sunum
-uygulaması kurulu olmalı; PDF için çoğu tabletteki görüntüleyici yeter.
+Sunum dosyalarını (`.pptx`) açmak için cihazında WPS Office gibi bir sunum
+uygulaması kurulu olmalı; PDF için çoğu cihazdaki görüntüleyici yeter.
+
+Arayüz 600 dp'den dar ekranlarda (telefon) kendini uyarlar: arama simgeye iner,
+seçim ve satır düğmeleri simgeli olur, kategoriler çekmecede açılır.
 
 ## Nasıl çalışır
 
@@ -37,7 +41,7 @@ uygulaması kurulu olmalı; PDF için çoğu tabletteki görüntüleyici yeter.
 - **Geri al:** her taşıma ve silmeden sonra alt çubukta "GERİ AL" çıkar.
 - **Çöp kutusu:** silinen dosyalar 30 gün saklanır, istersen geri konur.
 - **Arama:** dosya adında, Türkçe harfleri ayırt etmeden (`notlari` → `notları`).
-- **Dosyayı açma:** dosyayı tabletteki uygulamalardan biri açar (PDF görüntüleyici,
+- **Dosyayı açma:** dosyayı cihazdaki uygulamalardan biri açar (PDF görüntüleyici,
   WPS/PowerPoint vb.). "Şununla aç…" ile uygulama seçilebilir.
 
 Dolabın klasörü: `Dahili depolama/Dosya Dolabı`. Dosyalar hiçbir yere gönderilmez;

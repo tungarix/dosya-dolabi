@@ -46,9 +46,9 @@ const _mimes = {
   'pdf': 'application/pdf',
   'ppt': 'application/vnd.ms-powerpoint',
   'pps': 'application/vnd.ms-powerpoint',
-  'pptx':
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'ppsx': 'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'ppsx':
+      'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
   'pptm': 'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
   'odp': 'application/vnd.oasis.opendocument.presentation',
   'key': 'application/vnd.apple.keynote',

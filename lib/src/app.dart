@@ -21,10 +21,10 @@ class DolapApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     ThemeData theme(Brightness b) => ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: _seed, brightness: b),
-          snackBarTheme: const SnackBarThemeData(showCloseIcon: false),
-        );
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: _seed, brightness: b),
+      snackBarTheme: const SnackBarThemeData(showCloseIcon: false),
+    );
     return MaterialApp(
       title: 'Dosya Dolabı',
       debugShowCheckedModeBanner: false,

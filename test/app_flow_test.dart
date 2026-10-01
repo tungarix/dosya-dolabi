@@ -10,7 +10,9 @@ import 'package:path/path.dart' as p;
 /// "gerçek bekleme + kare çizimi" turu ister; tarama onlarca adımdan oluşur.
 Future<void> settle(WidgetTester t) async {
   for (var i = 0; i < 40; i++) {
-    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 15)));
+    await t.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 15)),
+    );
     await t.pump(const Duration(milliseconds: 60));
   }
   await t.pump(const Duration(seconds: 1)); // animasyonlar (snackbar, sayfa)
@@ -31,7 +33,10 @@ void main() {
 
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  Future<void> start(WidgetTester t, {Size size = const Size(1280, 800)}) async {
+  Future<void> start(
+    WidgetTester t, {
+    Size size = const Size(1280, 800),
+  }) async {
     t.view.physicalSize = size;
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -39,8 +44,9 @@ void main() {
     await settle(t);
   }
 
-  testWidgets('Gelen Kutusu\'ndaki dosya kategoriye taşınır ve geri alınır',
-      (t) async {
+  testWidgets('Gelen Kutusu\'ndaki dosya kategoriye taşınır ve geri alınır', (
+    t,
+  ) async {
     await start(t);
 
     // Açılışta yeni dosyalar Gelen Kutusu'nda, kategori yok.
@@ -57,16 +63,21 @@ void main() {
     await t.tap(find.text('Kategoriye koy').first);
     await settle(t);
     expect(find.text('Hangi kategoriye koyalım?'), findsOneWidget);
-    await t.tap(find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.text('Dersler'),
-    ));
+    await t.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Dersler'),
+      ),
+    );
     await settle(t);
 
     final moved = File(p.join(lib.root, 'Dersler', 'Fizik notları.pdf'));
     expect(moved.existsSync(), isTrue);
     expect(File(p.join(inbox, 'Fizik notları.pdf')).existsSync(), isFalse);
-    expect(find.text('Fizik notları.pdf'), findsNothing); // Gelen Kutusu'ndan çıktı
+    expect(
+      find.text('Fizik notları.pdf'),
+      findsNothing,
+    ); // Gelen Kutusu'ndan çıktı
     expect(find.text('GERİ AL'), findsOneWidget);
 
     // Geri al.
@@ -108,7 +119,10 @@ void main() {
     await settle(t);
     await t.tap(find.text('Tüm dosyalar'));
     await settle(t);
-    expect(t.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(
+      t.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+    );
   });
 
   testWidgets('dar ekranda kategoriler çekmecede açılır', (t) async {

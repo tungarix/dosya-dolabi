@@ -37,14 +37,20 @@ void main() {
       expect(s.root.files.single.category, '');
     });
 
-    test('kategorileri doğal sırada dizer (Hafta 2, Hafta 10\'dan önce)',
-        () async {
-      for (final n in ['Hafta 10', 'Hafta 2', 'Hafta 1']) {
-        Directory(p.join(lib.root, n)).createSync(recursive: true);
-      }
-      final s = await lib.scan();
-      expect(s.root.children.map((c) => c.name), ['Hafta 1', 'Hafta 2', 'Hafta 10']);
-    });
+    test(
+      'kategorileri doğal sırada dizer (Hafta 2, Hafta 10\'dan önce)',
+      () async {
+        for (final n in ['Hafta 10', 'Hafta 2', 'Hafta 1']) {
+          Directory(p.join(lib.root, n)).createSync(recursive: true);
+        }
+        final s = await lib.scan();
+        expect(s.root.children.map((c) => c.name), [
+          'Hafta 1',
+          'Hafta 2',
+          'Hafta 10',
+        ]);
+      },
+    );
 
     test('gizli dosyaları ve çöp kutusunu göstermez', () async {
       touch(p.join(lib.root, '.nomedia'));
@@ -62,51 +68,68 @@ void main() {
       touch(p.join(inbox, 'yarim.pdf.crdownload'));
       touch(p.join(inbox, 'alt', 'not.docx'));
       final s = await lib.scan();
-      expect(s.inbox.map((f) => f.name),
-          unorderedEquals(['ders.pdf', 'sunum.pptx', 'not.docx']));
+      expect(
+        s.inbox.map((f) => f.name),
+        unorderedEquals(['ders.pdf', 'sunum.pptx', 'not.docx']),
+      );
       expect(s.inbox.every((f) => !f.inLibrary), isTrue);
     });
 
-    test('dolap klasörü Gelen Kutusu içindeyse dolaptakiler tekrar görünmez',
-        () async {
-      final inside = Library(root: p.join(inbox, 'Dolap'), inboxDirs: [inbox]);
-      touch(p.join(inside.root, 'Ders', 'a.pdf'));
-      touch(p.join(inbox, 'b.pdf'));
-      final s = await inside.scan();
-      expect(s.inbox.map((f) => f.name), ['b.pdf']);
-    });
+    test(
+      'dolap klasörü Gelen Kutusu içindeyse dolaptakiler tekrar görünmez',
+      () async {
+        final inside = Library(
+          root: p.join(inbox, 'Dolap'),
+          inboxDirs: [inbox],
+        );
+        touch(p.join(inside.root, 'Ders', 'a.pdf'));
+        touch(p.join(inbox, 'b.pdf'));
+        final s = await inside.scan();
+        expect(s.inbox.map((f) => f.name), ['b.pdf']);
+      },
+    );
   });
 
   group('kategori işlemleri', () {
     test('oluşturur, çakışmayı ve geçersiz adı reddeder', () async {
       expect(await lib.createCategory('', 'Dersler'), 'Dersler');
       expect(await lib.createCategory('Dersler', 'Fizik'), 'Dersler/Fizik');
-      expect(Directory(p.join(lib.root, 'Dersler', 'Fizik')).existsSync(), isTrue);
-      expect(lib.createCategory('', 'Dersler'), throwsA(isA<LibraryException>()));
+      expect(
+        Directory(p.join(lib.root, 'Dersler', 'Fizik')).existsSync(),
+        isTrue,
+      );
+      expect(
+        lib.createCategory('', 'Dersler'),
+        throwsA(isA<LibraryException>()),
+      );
       expect(lib.createCategory('', 'a/b'), throwsA(isA<LibraryException>()));
       expect(lib.createCategory('', '  '), throwsA(isA<LibraryException>()));
     });
 
-    test('yeniden adlandırır; yalnızca harf boyu değişince de çalışır',
-        () async {
-      await lib.createCategory('', 'dersler');
-      touch(p.join(lib.root, 'dersler', 'a.pdf'));
-      expect(await lib.renameCategory('dersler', 'Dersler'), 'Dersler');
-      expect(await lib.renameCategory('Dersler', 'Okul'), 'Okul');
-      final s = await lib.scan();
-      expect(s.root.children.single.name, 'Okul');
-      expect(s.find('Okul')!.files.single.name, 'a.pdf');
-    });
+    test(
+      'yeniden adlandırır; yalnızca harf boyu değişince de çalışır',
+      () async {
+        await lib.createCategory('', 'dersler');
+        touch(p.join(lib.root, 'dersler', 'a.pdf'));
+        expect(await lib.renameCategory('dersler', 'Dersler'), 'Dersler');
+        expect(await lib.renameCategory('Dersler', 'Okul'), 'Okul');
+        final s = await lib.scan();
+        expect(s.root.children.single.name, 'Okul');
+        expect(s.find('Okul')!.files.single.name, 'a.pdf');
+      },
+    );
 
-    test('başka kategorinin içine taşır; kendi içine taşımayı reddeder',
-        () async {
-      await lib.createCategory('', 'A');
-      await lib.createCategory('A', 'B');
-      await lib.createCategory('', 'C');
-      expect(await lib.moveCategory('C', 'A/B'), 'A/B/C');
-      expect(lib.moveCategory('A', 'A/B'), throwsA(isA<LibraryException>()));
-      expect(lib.moveCategory('A', 'A'), throwsA(isA<LibraryException>()));
-    });
+    test(
+      'başka kategorinin içine taşır; kendi içine taşımayı reddeder',
+      () async {
+        await lib.createCategory('', 'A');
+        await lib.createCategory('A', 'B');
+        await lib.createCategory('', 'C');
+        expect(await lib.moveCategory('C', 'A/B'), 'A/B/C');
+        expect(lib.moveCategory('A', 'A/B'), throwsA(isA<LibraryException>()));
+        expect(lib.moveCategory('A', 'A'), throwsA(isA<LibraryException>()));
+      },
+    );
 
     test('silince içindekiler bir üste taşınır, dosya kaybolmaz', () async {
       touch(p.join(lib.root, 'A', 'B', 'x.pdf'));
@@ -136,8 +159,10 @@ void main() {
       final r = await lib.moveFiles([f.path], 'Dersler/Mat');
       expect(r.failed, isEmpty);
       expect(f.existsSync(), isFalse);
-      expect(File(p.join(lib.root, 'Dersler', 'Mat', 'ders.pdf')).readAsStringSync(),
-          'içerik');
+      expect(
+        File(p.join(lib.root, 'Dersler', 'Mat', 'ders.pdf')).readAsStringSync(),
+        'içerik',
+      );
     });
 
     test('aynı adlı dosya varsa ezmez, "(2)" ekler', () async {
@@ -145,8 +170,14 @@ void main() {
       final f = touch(p.join(inbox, 'ders.pdf'), 'yeni');
       final r = await lib.moveFiles([f.path], 'K');
       expect(p.basename(r.moved.single.to), 'ders (2).pdf');
-      expect(File(p.join(lib.root, 'K', 'ders.pdf')).readAsStringSync(), 'eski');
-      expect(File(p.join(lib.root, 'K', 'ders (2).pdf')).readAsStringSync(), 'yeni');
+      expect(
+        File(p.join(lib.root, 'K', 'ders.pdf')).readAsStringSync(),
+        'eski',
+      );
+      expect(
+        File(p.join(lib.root, 'K', 'ders (2).pdf')).readAsStringSync(),
+        'yeni',
+      );
     });
 
     test('zaten o kategorideki dosyayı atlar', () async {
@@ -175,8 +206,10 @@ void main() {
       final a = touch(p.join(lib.root, 'K', 'a.pdf'));
       touch(p.join(lib.root, 'K', 'b.pdf'));
       expect(p.basename(await lib.renameFile(a.path, 'vize.pdf')), 'vize.pdf');
-      expect(lib.renameFile(p.join(lib.root, 'K', 'vize.pdf'), 'b.pdf'),
-          throwsA(isA<LibraryException>()));
+      expect(
+        lib.renameFile(p.join(lib.root, 'K', 'vize.pdf'), 'b.pdf'),
+        throwsA(isA<LibraryException>()),
+      );
     });
   });
 
