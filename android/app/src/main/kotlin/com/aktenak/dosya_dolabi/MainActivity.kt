@@ -13,8 +13,12 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
+    private val previewPool: ExecutorService = Executors.newFixedThreadPool(2)
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -34,6 +38,24 @@ class MainActivity : FlutterActivity() {
                             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
                         )
                         result.success(null)
+                        return@setMethodCallHandler
+                    }
+                    "preview" -> {
+                        val previewPath = call.argument<String>("path")
+                        val px = call.argument<Int>("px") ?: 420
+                        if (previewPath == null) {
+                            result.success(null)
+                        } else {
+                            // PDF/resim çizimi ana iş parçacığını tutmasın.
+                            previewPool.execute {
+                                val bytes = try {
+                                    Previews.render(previewPath, px)
+                                } catch (e: Throwable) {
+                                    null // bozuk/şifreli dosya, bellek yetersizliği: önizleme yok
+                                }
+                                runOnUiThread { result.success(bytes) }
+                            }
+                        }
                         return@setMethodCallHandler
                     }
                     "open" -> Unit

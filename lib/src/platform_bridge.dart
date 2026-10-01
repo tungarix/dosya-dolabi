@@ -90,6 +90,22 @@ class StorageAccess {
   }
 }
 
+/// Android'in kendi PdfRenderer/BitmapFactory'siyle küçük resim üretir (JPEG
+/// baytları); başka platformda ya da çizilemeyen dosyada null.
+Future<Uint8List?> nativePreview(String path, int px) async {
+  if (!Platform.isAndroid) return null;
+  try {
+    return await _channel.invokeMethod<Uint8List>('preview', {
+      'path': path,
+      'px': px,
+    });
+  } on PlatformException {
+    return null;
+  } on MissingPluginException {
+    return null;
+  }
+}
+
 enum OpenResult { ok, noApp, failed }
 
 Future<OpenResult> openFile(

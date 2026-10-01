@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'library.dart';
+import 'preview.dart';
 import 'text.dart';
 
 enum Section { inbox, all, category, trash }
@@ -50,7 +51,8 @@ class Outcome {
 }
 
 class DolapState extends ChangeNotifier {
-  DolapState(this.lib, [this._prefs]) {
+  DolapState(this.lib, [this._prefs, PreviewCache? previews])
+    : previews = previews ?? PreviewCache(const PlatformPreviewSource()) {
     sort = SortBy.values.firstWhere(
       (s) => s.name == _prefs?.getString('sort'),
       orElse: () => SortBy.name,
@@ -60,6 +62,9 @@ class DolapState extends ChangeNotifier {
   }
 
   final Library lib;
+
+  /// Dosya önizlemeleri (küçük resim/metin); ekran kaydırılırken tembel üretilir.
+  final PreviewCache previews;
   final SharedPreferences? _prefs;
 
   LibrarySnapshot? snap;

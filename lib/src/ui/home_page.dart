@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../state.dart';
 import 'dialogs.dart';
+import 'file_actions.dart';
 import 'file_view.dart';
 import 'layout.dart';
 import 'sidebar.dart';

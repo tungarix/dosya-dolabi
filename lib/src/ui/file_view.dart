@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../file_kind.dart';
 import '../library.dart';
-import '../platform_bridge.dart';
+import '../preview.dart';
 import '../state.dart';
 import '../text.dart';
-import 'dialogs.dart';
+import 'file_actions.dart';
+import 'file_preview.dart';
 import 'layout.dart';
 
 /// Açık yerdeki dosyalar (ve alt kategoriler): ızgara ya da liste.
@@ -84,7 +85,7 @@ class FileView extends StatelessWidget {
               sliver: SliverGrid.builder(
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 240,
-                  mainAxisExtent: 196,
+                  mainAxisExtent: 256,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                 ),
@@ -207,74 +208,7 @@ class _Empty extends StatelessWidget {
   }
 }
 
-// ------------------------------------------------------------ dosya işlemleri
-
-Future<void> openDoc(
-  BuildContext context,
-  DocFile f, {
-  bool chooser = false,
-}) async {
-  final r = await openFile(f.path, mimeOf(f.path), chooser: chooser);
-  if (!context.mounted) return;
-  switch (r) {
-    case OpenResult.ok:
-      break;
-    case OpenResult.noApp:
-      showOutcome(
-        context,
-        Outcome(
-          'Bu ${f.kind.label.toLowerCase()} dosyasını açabilen bir uygulama yok. '
-          'Play Store\'dan bir ${f.kind == FileKind.slides ? 'sunum' : f.kind.label.toLowerCase()} '
-          'uygulaması yükleyebilirsin.',
-          isError: true,
-        ),
-      );
-    case OpenResult.failed:
-      showOutcome(context, const Outcome('Dosya açılamadı', isError: true));
-  }
-}
-
-Future<void> moveDocs(
-  BuildContext context,
-  DolapState state,
-  List<DocFile> files,
-) async {
-  final to = await pickCategory(
-    context,
-    state,
-    title: files.length == 1
-        ? 'Hangi kategoriye koyalım?'
-        : '${files.length} dosya hangi kategoriye koyulsun?',
-  );
-  if (to == null || !context.mounted) return;
-  runAndShow(context, state.moveFiles(files, to));
-}
-
-Future<void> trashDocs(
-  BuildContext context,
-  DolapState state,
-  List<DocFile> files,
-) async {
-  runAndShow(context, state.trashFiles(files));
-}
-
-Future<void> renameDoc(
-  BuildContext context,
-  DolapState state,
-  DocFile f,
-) async {
-  final name = await promptName(
-    context,
-    title: 'Dosyanın adını değiştir',
-    confirmText: 'Kaydet',
-    initial: f.name,
-    selectBaseName: true,
-  );
-  if (name == null || !context.mounted) return;
-  runAndShow(context, state.renameFile(f, name));
-}
-
-enum _FileAction { open, openWith, move, rename, trash }
+enum _FileAction { preview, open, openWith, move, rename, trash }
 
 class _FileMenu extends StatelessWidget {
   const _FileMenu({required this.state, required this.file});
@@ -288,6 +222,8 @@ class _FileMenu extends StatelessWidget {
       icon: const Icon(Icons.more_vert, size: 20),
       onSelected: (a) {
         switch (a) {
+          case _FileAction.preview:
+            showFilePreviewDialog(context, state, file);
           case _FileAction.open:
             openDoc(context, file);
           case _FileAction.openWith:
@@ -301,6 +237,13 @@ class _FileMenu extends StatelessWidget {
         }
       },
       itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: _FileAction.preview,
+          child: ListTile(
+            leading: Icon(Icons.visibility_outlined),
+            title: Text('Önizle'),
+          ),
+        ),
         const PopupMenuItem(
           value: _FileAction.open,
           child: ListTile(leading: Icon(Icons.open_in_new), title: Text('Aç')),
@@ -342,21 +285,50 @@ class _FileMenu extends StatelessWidget {
 
 // ------------------------------------------------------------------ kart/satır
 
-class _KindBadge extends StatelessWidget {
-  const _KindBadge(this.kind, {this.size = 44});
+/// Önizlemenin üstüne binen küçük tür etiketi ("PDF", "Slayt"...).
+class _KindChip extends StatelessWidget {
+  const _KindChip(this.kind);
   final FileKind kind;
-  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: kind.color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(size * 0.28),
+        color: kind.color,
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(kind.icon, color: kind.color, size: size * 0.56),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(kind.icon, size: 14, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            kind.label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Önizlemenin üstünde okunur kalması için yarı saydam yuvarlak zemin.
+class _OnPreview extends StatelessWidget {
+  const _OnPreview({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(width: 36, height: 36, child: Center(child: child)),
     );
   }
 }
@@ -367,6 +339,8 @@ class _FileCard extends StatelessWidget {
     required this.file,
     required this.showWhere,
   });
+
+  static const previewHeight = 120.0;
 
   final DolapState state;
   final DocFile file;
@@ -394,76 +368,86 @@ class _FileCard extends StatelessWidget {
             ? state.toggleSelected(file.path)
             : openDoc(context, file),
         onLongPress: () => state.toggleSelected(file.path),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 4, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: previewHeight,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  _KindBadge(file.kind),
-                  const Spacer(),
-                  if (state.selecting)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10, top: 4),
-                      child: Icon(
-                        selected
-                            ? Icons.check_circle_rounded
-                            : Icons.radio_button_unchecked,
-                        color: selected ? cs.primary : cs.outline,
-                      ),
-                    )
-                  else
-                    _FileMenu(state: state, file: file),
+                  FilePreview(
+                    cache: state.previews,
+                    file: file,
+                    px: cardPreviewPx,
+                    iconSize: 44,
+                  ),
+                  Positioned(left: 8, bottom: 8, child: _KindChip(file.kind)),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: _OnPreview(
+                      child: state.selecting
+                          ? Icon(
+                              selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked,
+                              color: selected ? cs.primary : cs.outline,
+                            )
+                          : _FileMenu(state: state, file: file),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Text(
-                    file.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: Text(
-                  '${file.kind.label} · ${formatSize(file.size)}',
-                  style: sub,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 10, bottom: 2),
-                child: Text(
-                  showWhere
-                      ? '${state.whereIs(file)} · ${formatDate(file.modified)}'
-                      : formatDate(file.modified),
-                  style: sub,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (!file.inLibrary && !state.selecting)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        file.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
-                    onPressed: () => moveDocs(context, state, [file]),
-                    icon: const Icon(Icons.drive_file_move_rounded, size: 18),
-                    label: const Text('Kategoriye koy'),
-                  ),
+                    Text(
+                      '${formatSize(file.size)} · ${formatDate(file.modified)}',
+                      style: sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (showWhere)
+                      Text(
+                        state.whereIs(file),
+                        style: sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (!file.inLibrary && !state.selecting)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
+                          onPressed: () => moveDocs(context, state, [file]),
+                          icon: const Icon(
+                            Icons.drive_file_move_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('Kategoriye koy'),
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -491,7 +475,19 @@ class _FileRow extends StatelessWidget {
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         tileColor: selected ? cs.secondaryContainer : null,
-        leading: _KindBadge(file.kind, size: 42),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 48,
+            height: 60,
+            child: FilePreview(
+              cache: state.previews,
+              file: file,
+              px: rowPreviewPx,
+              iconSize: 26,
+            ),
+          ),
+        ),
         title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           [

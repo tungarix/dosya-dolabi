@@ -4,17 +4,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'library.dart';
 import 'platform_bridge.dart';
+import 'preview.dart';
 import 'state.dart';
 import 'ui/home_page.dart';
 import 'ui/permission_page.dart';
 
 class DolapApp extends StatelessWidget {
-  const DolapApp({super.key, this.prefs, this.library});
+  const DolapApp({super.key, this.prefs, this.library, this.previewSource});
 
   final SharedPreferences? prefs;
 
   /// Testlerde geçici klasörle çalışan bir dolap vermek için.
   final Library? library;
+
+  /// Testlerde sahte/boş önizleme kaynağı vermek için.
+  final PreviewSource? previewSource;
 
   static const _seed = Color(0xFF2F5D8A);
 
@@ -33,7 +37,7 @@ class DolapApp extends StatelessWidget {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: theme(Brightness.light),
       darkTheme: theme(Brightness.dark),
-      home: Gate(prefs: prefs, library: library),
+      home: Gate(prefs: prefs, library: library, previewSource: previewSource),
     );
   }
 }
@@ -41,10 +45,11 @@ class DolapApp extends StatelessWidget {
 /// İzin varsa dolabı, yoksa izin ekranını gösterir. Uygulamaya geri
 /// dönülünce (ayarlardan ya da başka uygulamadan) izni ve dosyaları yeniler.
 class Gate extends StatefulWidget {
-  const Gate({super.key, this.prefs, this.library});
+  const Gate({super.key, this.prefs, this.library, this.previewSource});
 
   final SharedPreferences? prefs;
   final Library? library;
+  final PreviewSource? previewSource;
 
   @override
   State<Gate> createState() => _GateState();
@@ -82,6 +87,7 @@ class _GateState extends State<Gate> with WidgetsBindingObserver {
         widget.library ??
             Library(root: defaultRoot(), inboxDirs: defaultInboxDirs()),
         widget.prefs,
+        PreviewCache(widget.previewSource ?? const PlatformPreviewSource()),
       );
       setState(() => _granted = true);
       await _state!.refresh(first: first);

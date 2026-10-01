@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dosya_dolabi/src/app.dart';
 import 'package:dosya_dolabi/src/library.dart';
+import 'package:dosya_dolabi/src/preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -40,7 +41,9 @@ void main() {
     t.view.physicalSize = size;
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    await t.pumpWidget(DolapApp(library: lib));
+    await t.pumpWidget(
+      DolapApp(library: lib, previewSource: const NoPreviewSource()),
+    );
     await settle(t);
   }
 

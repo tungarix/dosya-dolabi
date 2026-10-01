@@ -36,6 +36,12 @@ seçim ve satır düğmeleri simgeli olur, kategoriler çekmecede açılır.
 - **Kategoriler:** iç içe olabilir (Dersler › Matematik › Vize). Oluştur, adını
   değiştir, başka kategorinin içine taşı, sil. Bir kategori silinince içindekiler
   silinmez, bir üst kategoriye çıkar.
+- **Önizleme:** dosya adı anlamsız olsa bile içeriğini tanıyabilmen için her kartta ve
+  satırda önizleme var: PDF'in ilk sayfası, resimler (fotoğraflar doğru yönde, saydam
+  PNG beyaz zeminde), sunum/Word/ODF dosyalarında içlerine gömülü küçük resim; yoksa ilk
+  slayt ya da sayfanın metni; Excel'de ilk hücre metinleri; metin/CSV dosyalarında ilk
+  satırlar. Kart menüsündeki **Önizle** büyük, yakınlaştırılabilir bir pencere açar.
+  Önizlemesi çıkarılamayan (bozuk, şifreli) dosyada tür simgesi gösterilir.
 - **Dosya işlemleri:** aç, kategoriye koy / taşı, adını değiştir, çöp kutusuna at.
   Birden çok dosyayı uzun basarak seçip toplu taşıyabilirsin.
 - **Geri al:** her taşıma ve silmeden sonra alt çubukta "GERİ AL" çıkar.
@@ -89,10 +95,12 @@ Windows sürümü yalnızca geliştirme içindir; hedef Android'dir.
 
 | Dosya | Görev |
 | --- | --- |
+| `lib/src/preview.dart` | Önizleme: zip tabanlı belgelerden (OOXML/ODF) küçük resim ya da metin çıkarımı, metin dosyası başı, önbellek (en çok 160 önizleme, aynı anda 3 iş, ekrandaki önce). |
 | `lib/src/library.dart` | Dosya sistemi katmanı: tarama, kategori/dosya işlemleri, geri alma, çöp kutusu. Arayüzden bağımsız. |
 | `lib/src/state.dart` | Arayüzün durumu ve işlem sonuçları (`Outcome`). |
 | `lib/src/text.dart` | Türkçe arama katlaması, doğal sıralama, boyut/tarih biçimi, ad doğrulama. |
 | `lib/src/file_kind.dart` | Dosya türü, simge, renk, MIME. |
 | `lib/src/platform_bridge.dart` | Dolap konumu, izin, dosyayı başka uygulamada açma (Dart tarafı). |
-| `lib/src/ui/` | Sidebar, dosya görünümü, diyaloglar, çöp kutusu, izin ekranı. |
-| `android/.../MainActivity.kt` | Android köprüsü: depolama izni, `FileProvider` ile dosyayı açma. |
+| `lib/src/ui/` | Sidebar, dosya görünümü ve önizleme (`file_preview.dart`), dosya işlemleri, diyaloglar, çöp kutusu, izin ekranı. |
+| `android/.../MainActivity.kt` | Android köprüsü: depolama izni, `FileProvider` ile dosyayı açma, önizleme isteği. |
+| `android/.../Previews.kt` | PDF'in ilk sayfasını (`PdfRenderer`) ve resimleri (`BitmapFactory`, EXIF yönü) küçük resme çevirir; eklenti kullanmaz. |
