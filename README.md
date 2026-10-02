@@ -90,6 +90,9 @@ Windows sürümü yalnızca geliştirme içindir; hedef Android'dir.
 - APK, hata ayıklama anahtarıyla imzalanır; güncellemenin eskisinin üstüne
   kurulabilmesi için aynı bilgisayardan (aynı `~/.android/debug.keystore`)
   derlemek gerekir.
+- Sürüm çıkarma sırası ve güvenlik incelemesi: `guvenlik/incelemeler/README.md`.
+  İncelemesi kayıtlı olmayan bir release yayımlanırsa `guvenlik-kapisi.yml`
+  onu taslağa geri çeker.
 
 ## Yapı
 

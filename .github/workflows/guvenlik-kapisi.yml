@@ -1,0 +1,34 @@
+name: Güvenlik kapısı
+
+# APK yerelde (hata ayıklama anahtarıyla) derlenip taslak release olarak
+# yükleniyor; CI'da derleme yok. Bu yüzden kapı yayımlama anında çalışır:
+# yayımlanan sürümün güvenlik incelemesi kayıtlı ve güncel değilse release
+# taslağa geri çekilir ve iş kırmızı biter. Biçim: guvenlik/incelemeler/README.md
+on:
+  release:
+    types: [published]
+
+# Yalnız release'i taslağa geri çekebilmek için.
+permissions:
+  contents: write
+
+jobs:
+  kapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          # Kapı önceki etiketi ve incelenen commit'i görmeli.
+          fetch-depth: 0
+
+      - name: Güvenlik kapısı
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ETIKET: ${{ github.event.release.tag_name }}
+        run: |
+          if ! python3 scripts/guvenlik_kapisi.py "$ETIKET"; then
+            gh release edit "$ETIKET" --draft=true --repo "$GITHUB_REPOSITORY"
+            echo "::error::$ETIKET için güncel güvenlik incelemesi yok; release taslağa geri çekildi."
+            exit 1
+          fi
