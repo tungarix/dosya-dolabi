@@ -11,8 +11,8 @@
 
 ![Dosya Dolabı Gelen Kutusu: solda kategori ağacı, sağda tablo, belge, slayt ve PDF önizlemeleri olan dosya kartları (örnek dosyalarla)](docs/screenshot.jpg)
 
-Emülatörde denendi, gerçek bir cihazda henüz denenmedi. Denersen ne eksik ya da
-bozuk, [issue aç](https://github.com/tungarix/dosya-dolabi/issues).
+Emülatörde ve gerçek bir cihazda denendi, bilinen bir sorun yok. Başka cihazlarda
+denersen ne eksik ya da bozuk, [issue aç](https://github.com/tungarix/dosya-dolabi/issues).
 
 Android tablet (ve telefon) için PDF, slayt ve belge düzenleyici. İndirdiğin ya da aldığın
 dosyalar **Gelen Kutusu**'nda birikir; sen her birini bir **kategoriye** koyarsın
@@ -76,7 +76,6 @@ tasarlandı.
 - APK hata ayıklama anahtarıyla imzalıdır. Güncellemenin eskisinin üstüne kurulabilmesi
   için aynı anahtarla derlenmesi gerekir; başka bir bilgisayardan derlenen sürüm var olan
   kurulumun üstüne kurulmaz.
-- Emülatörde denendi, gerçek bir cihazda henüz denenmedi.
 
 ## Derleme
 
