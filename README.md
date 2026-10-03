@@ -6,6 +6,14 @@
 > (APK), no internet permission. Built with Flutter.
 > Download the APK from [Releases](https://github.com/tungarix/dosya-dolabi/releases).
 
+> **Durum:** Erken erişim · **Platform:** Android (tablet, telefonda da çalışır) ·
+> **Lisans:** MIT · **İndir:** [Son sürüm](https://github.com/tungarix/dosya-dolabi/releases/latest)
+
+![Dosya Dolabı Gelen Kutusu: solda kategori ağacı, sağda tablo, belge, slayt ve PDF önizlemeleri olan dosya kartları (örnek dosyalarla)](docs/screenshot.jpg)
+
+Emülatörde denendi, gerçek bir cihazda henüz denenmedi. Denersen ne eksik ya da
+bozuk, [issue aç](https://github.com/tungarix/dosya-dolabi/issues).
+
 Android tablet (ve telefon) için PDF, slayt ve belge düzenleyici. İndirdiğin ya da aldığın
 dosyalar **Gelen Kutusu**'nda birikir; sen her birini bir **kategoriye** koyarsın
 (ör. `Dersler › Matematik`). Kategoriler cihazında **gerçek klasörlerdir**:
@@ -59,6 +67,16 @@ Dosyaları kendi klasöründen alıp kategori klasörüne taşıyabilmesi için 
 "Tüm dosyalara erişim" iznini ister (ilk açılışta açıklayıcı bir ekran çıkar).
 Bu izin Google Play'de kısıtlıdır; bu yüzden uygulama APK olarak kurulmak üzere
 tasarlandı.
+
+## Bilinen sınırlar
+
+- Slayt ve Word sayfaları çizilemez: dosyanın içinde gömülü küçük resim yoksa yalnızca
+  metin gösterilir (PowerPoint'in kaydettiği dosyalarda genelde vardır).
+- Yüzlerce dosyalı bir klasörde kaydırma akıcılığı henüz ölçülmedi.
+- APK hata ayıklama anahtarıyla imzalıdır. Güncellemenin eskisinin üstüne kurulabilmesi
+  için aynı anahtarla derlenmesi gerekir; başka bir bilgisayardan derlenen sürüm var olan
+  kurulumun üstüne kurulmaz.
+- Emülatörde denendi, gerçek bir cihazda henüz denenmedi.
 
 ## Derleme
 
