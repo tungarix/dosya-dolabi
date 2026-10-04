@@ -136,6 +136,9 @@ class Library {
 
   static const trashFolder = '.cop-kutusu';
   static const _indexName = '.index.json';
+  // Dizin önce buraya yazılıp üstüne taşınır (yarım yazılmış dizin kalmasın).
+  static const _indexTmpName = '.index.json.tmp';
+  static const _nomedia = '.nomedia';
   static const _skipInboxDirs = {'Sent', 'Private'};
 
   String get trashDir => p.join(root, trashFolder);
@@ -284,22 +287,36 @@ class Library {
   }
 
   /// Kategoriyi siler; içindeki dosya ve alt kategoriler bir üst kategoriye
-  /// taşınır, böylece hiçbir dosya kaybolmaz. Geri almak için taşımaları
-  /// döndürür.
+  /// taşınır, böylece hiçbir dosya kaybolmaz. Gizli öğeler de (Android'in
+  /// ".trashed-*" sistem çöpü, ".thumbnails" vb.) taşınır; yalnızca ".nomedia"
+  /// taşınmaz, silinir: üst klasöre gitseydi galeri uygulamalarında o klasörü
+  /// de gizlerdi. Son adımda klasör boş değilse (arada yeni dosya gelmiş
+  /// olabilir) olduğu gibi bırakılır; hiçbir şey sessizce silinmez. Geri almak
+  /// için taşımaları döndürür.
   Future<List<Moved>> deleteCategory(String path) async {
     if (path.isEmpty) throw const LibraryException('Ana klasör silinemez');
     final dir = dirOf(path);
     final parentDir = p.dirname(dir);
     final moved = <Moved>[];
     final entries = await Directory(dir).list(followLinks: false).toList();
+    File? nomedia;
     for (final e in entries) {
       final name = p.basename(e.path);
-      if (name.startsWith('.')) continue;
+      if (name == _nomedia && e is File) {
+        nomedia = e; // taşınmaz, taşımalardan sonra silinir
+        continue;
+      }
       final to = _uniquePath(parentDir, name, isDir: e is Directory);
       await e.rename(to);
       moved.add(Moved(e.path, to));
     }
-    await Directory(dir).delete(recursive: true);
+    try {
+      await nomedia?.delete();
+      // Özyinelemeli DEĞİL: klasörde hâlâ bir şey varsa silinmez.
+      await Directory(dir).delete();
+    } on FileSystemException {
+      // Klasörde bir şey kaldı (ya da silinemedi): olduğu gibi bırak.
+    }
     return moved;
   }
 
@@ -443,9 +460,16 @@ class Library {
       if (e is! File || name.startsWith('.')) continue;
       final meta = index[name];
       final st = await e.stat();
-      final at =
-          (meta is Map ? DateTime.tryParse('${meta['at']}') : null) ??
-          st.modified;
+      var at = meta is Map ? DateTime.tryParse('${meta['at']}') : null;
+      if (at == null) {
+        // Silinme zamanı bilinmiyor (kayıt yok, bozuk ya da ayrıştırılamıyor).
+        // Dosyanın değişme tarihine GÜVENME: taşıma onu korur, çöpe yeni atılmış
+        // eski bir indirme "30 günü geçmiş" sayılıp kalıcı silinirdi. Şimdiyi
+        // kabul et ve dizine yaz; 30 günlük sayaç dosya ilk görüldüğünde başlar.
+        at = now;
+        index[name] = {if (meta is Map) ...meta, 'at': now.toIso8601String()};
+        changed = true;
+      }
       final from = meta is Map && meta['from'] is String
           ? meta['from'] as String
           : p.join(root, name);
@@ -484,9 +508,14 @@ class Library {
     return {};
   }
 
+  /// Dizini önce aynı klasördeki geçici dosyaya yazıp (diske boşaltarak) sonra
+  /// üstüne taşır: yazma sırasında uygulama kapanırsa eski dizin bozulmadan
+  /// kalır. Önceki yarım kalmış geçici dosya burada ezilir.
   Future<void> _writeIndex(Map<String, dynamic> index) async {
     await Directory(trashDir).create(recursive: true);
-    await File(p.join(trashDir, _indexName)).writeAsString(jsonEncode(index));
+    final tmp = File(p.join(trashDir, _indexTmpName));
+    await tmp.writeAsString(jsonEncode(index), flush: true);
+    await tmp.rename(p.join(trashDir, _indexName));
   }
 
   // ------------------------------------------------------------ yardımcılar
