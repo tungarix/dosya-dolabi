@@ -29,6 +29,24 @@ final jpegBytes = Uint8List.fromList([
 String slide(List<String> paragraphs) =>
     '<p:sld><p:cSld><p:spTree>${paragraphs.map((t) => '<a:p><a:r><a:t>$t</a:t></a:r></a:p>').join()}</p:spTree></p:cSld></p:sld>';
 
+/// Gerçek bir zip girdisini sarar; içeriği TAMAMEN açan her yol (content,
+/// readBytes, getContent) patlar. Önizleme yollarının yalnızca sınırlı okuma
+/// kullandığını (çıktı aynı kalsa bile) kanıtlamak için.
+class TamAcmaYasak extends ArchiveFile {
+  TamAcmaYasak(ArchiveFile f) : super.file(f.name, f.size, f.rawContent!) {
+    compression = f.compression;
+  }
+
+  @override
+  Uint8List get content => throw StateError('girdi tamamen açıldı: $name');
+
+  @override
+  Uint8List? readBytes() => throw StateError('girdi tamamen açıldı: $name');
+
+  @override
+  InputStream? getContent() => throw StateError('girdi tamamen açıldı: $name');
+}
+
 DocFile doc(String path, {int size = 10, int ms = 1}) => DocFile(
   path: path,
   size: size,
@@ -291,6 +309,173 @@ void main() {
         await src.load(write('w.pdf', [1, 2, 3]), px: 400),
         isNull,
       ); // masaüstünde PDF çizilemez
+    });
+  });
+
+  group('zip girdisi sınırlı okunur (zip bombası)', () {
+    const cap = 600 * 1024;
+    const bomba = 8 * 1024 * 1024; // sıkıştırılınca birkaç KB, açılınca 8 MiB
+
+    /// "<a:t>merhaba</a:t>" ile başlayan, ardından boşluk dolu bir slayt XML'i.
+    List<int> bombaXml() {
+      final bas = utf8.encode('<a:p><a:r><a:t>merhaba</a:t></a:r></a:p>');
+      return [...bas, ...List.filled(bomba - bas.length, 0x20)];
+    }
+
+    /// Zip'teki TÜM girdilerin başlıktaki "açılmış boyut" alanlarını [yalan]
+    /// yapar (yerel başlık: ofset 22, merkezi dizin: ofset 24).
+    Uint8List basligiYalanlat(Uint8List zip, int yalan) {
+      final b = ByteData.sublistView(zip);
+      for (var i = 0; i + 30 < zip.length; i++) {
+        if (zip[i] != 0x50 || zip[i + 1] != 0x4B) continue;
+        if (zip[i + 2] == 3 && zip[i + 3] == 4) {
+          b.setUint32(i + 22, yalan, Endian.little);
+        } else if (zip[i + 2] == 1 && zip[i + 3] == 2) {
+          b.setUint32(i + 24, yalan, Endian.little);
+        }
+      }
+      return zip;
+    }
+
+    ArchiveFile girdi(Uint8List zip, String ad) =>
+        ZipDecoder().decodeBytes(zip).findFile(ad)!;
+
+    test(
+      'sıkıştırılmış dev girdi yalnızca baştan okunur, belleğe tamamen açılmaz',
+      () {
+        final zip = makeZip({'ppt/slides/slide1.xml': bombaXml()});
+        final f = girdi(zip, 'ppt/slides/slide1.xml');
+        final b = readBoundedEntry(f, cap, truncate: true)!;
+        expect(
+          b.length,
+          cap,
+          reason: '8 MiB açılmamalı, ilk $cap bayt alınmalı',
+        );
+        expect(utf8.decode(b.sublist(0, 18)), startsWith('<a:p><a:r><a:t>mer'));
+        // Tamamı gerekiyorsa (gömülü resim gibi) tavanı aşan girdi reddedilir.
+        expect(readBoundedEntry(f, 3 * 1024 * 1024, truncate: false), isNull);
+      },
+    );
+
+    test(
+      'başlığı yalan söyleyen (küçük boyut iddia eden) bomba da sınırlı kalır',
+      () {
+        final zip = basligiYalanlat(
+          makeZip({'ppt/slides/slide1.xml': bombaXml()}),
+          100,
+        );
+        final f = girdi(zip, 'ppt/slides/slide1.xml');
+        expect(f.size, 100, reason: 'başlık gerçekten yalanlatılmış olmalı');
+        expect(readBoundedEntry(f, cap, truncate: true)!.length, cap);
+        expect(readBoundedEntry(f, 3 * 1024 * 1024, truncate: false), isNull);
+      },
+    );
+
+    test('tavan altındaki girdi aynen döner (sıkıştırılmış ve depolanmış)', () {
+      final veri = List<int>.generate(50000, (i) => 65 + i % 26);
+      final a = Archive()
+        ..addFile(ArchiveFile('sikisik.xml', veri.length, veri))
+        ..addFile(ArchiveFile.noCompress('depolanan.xml', veri.length, veri));
+      final zip = Uint8List.fromList(ZipEncoder().encode(a));
+      final okunan = ZipDecoder().decodeBytes(zip);
+      for (final ad in ['sikisik.xml', 'depolanan.xml']) {
+        final f = okunan.findFile(ad)!;
+        expect(readBoundedEntry(f, cap, truncate: true), veri, reason: ad);
+        expect(readBoundedEntry(f, cap, truncate: false), veri, reason: ad);
+      }
+      expect(
+        okunan.findFile('depolanan.xml')!.compression,
+        CompressionType.none,
+        reason: 'depolanan yol gerçekten sınanıyor olmalı',
+      );
+    });
+
+    test('depolanmış (sıkıştırmasız) dev girdi de sınırlı okunur', () {
+      final veri = List<int>.filled(bomba, 0x41);
+      final a = Archive()
+        ..addFile(ArchiveFile.noCompress('dev.xml', veri.length, veri));
+      final f = ZipDecoder()
+          .decodeBytes(Uint8List.fromList(ZipEncoder().encode(a)))
+          .findFile('dev.xml')!;
+      expect(readBoundedEntry(f, cap, truncate: true)!.length, cap);
+      expect(readBoundedEntry(f, cap, truncate: false), isNull);
+    });
+
+    test('aynı girdi iki kez okunabilir (akış konumu geri alınır)', () {
+      final zip = makeZip({'a.xml': bombaXml()});
+      final f = girdi(zip, 'a.xml');
+      final ilk = readBoundedEntry(f, cap, truncate: true)!;
+      final ikinci = readBoundedEntry(f, cap, truncate: true)!;
+      expect(ikinci, ilk);
+    });
+
+    test('bomba içeren sunumun önizlemesi yine de çıkar ve hızlı biter', () {
+      final tmp = Directory.systemTemp.createTempSync('bomba_');
+      addTearDown(() => tmp.deleteSync(recursive: true));
+      final zip = basligiYalanlat(
+        makeZip({
+          'ppt/presentation.xml': '<p:presentation><p:sldId id="256" r:id="rId1"/></p:presentation>',
+          'ppt/_rels/presentation.xml.rels': '<Relationships><Relationship Id="rId1" Target="slides/slide1.xml"/></Relationships>',
+          'ppt/slides/slide1.xml': bombaXml(),
+        }),
+        100,
+      );
+      final path = (File(
+        p.join(tmp.path, 'b.pptx'),
+      )..writeAsBytesSync(zip)).path;
+      final sw = Stopwatch()..start();
+      final pv = zipDocumentPreview(path, 'pptx');
+      sw.stop();
+      expect(pv, isNotNull);
+      expect(pv!.text, contains('merhaba'));
+      expect(sw.elapsedMilliseconds, lessThan(2000));
+    });
+
+    test('önizleme yolları girdiyi content/readBytes ile TAMAMEN açmaz', () {
+      // Çıktı sınırlı okumayla da aynı çıkar; bu yüzden yalnızca "tam açan yol
+      // çağrıldı mı" bakışı, kodun yeniden `f.content`e dönmesini yakalar.
+      Archive korumali(Map<String, Object> dosyalar) {
+        final a = Archive();
+        for (final f in ZipDecoder().decodeBytes(makeZip(dosyalar)).files) {
+          a.addFile(TamAcmaYasak(f));
+        }
+        return a;
+      }
+
+      final metinli = archivePreview(
+        korumali({
+          'word/document.xml': '<w:p><w:r><w:t>Metin</w:t></w:r></w:p>',
+        }),
+        'docx',
+      );
+      expect(metinli!.text, contains('Metin'));
+
+      final resimli = archivePreview(
+        korumali({
+          'docProps/thumbnail.jpeg': jpegBytes,
+          'word/document.xml': '<w:p><w:r><w:t>Metin</w:t></w:r></w:p>',
+        }),
+        'docx',
+      );
+      expect(resimli!.isImage, isTrue);
+    });
+
+    test('tavanı aşan gömülü küçük resim yok sayılır, metne düşülür', () {
+      final dev = Uint8List.fromList([
+        0xFF, 0xD8, 0xFF, 0xE0, //
+        ...List.filled(4 * 1024 * 1024, 7),
+      ]);
+      final zip = basligiYalanlat(
+        makeZip({
+          'docProps/thumbnail.jpeg': dev,
+          'word/document.xml': '<w:p><w:r><w:t>Metin</w:t></w:r></w:p>',
+        }),
+        100, // başlık tavan altı görünüyor: yalnızca sınırlı okuma yakalar
+      );
+      final pv = archivePreview(ZipDecoder().decodeBytes(zip), 'docx');
+      expect(pv, isNotNull);
+      expect(pv!.isImage, isFalse, reason: '4 MiB resim tavanı aşıyor');
+      expect(pv.text, contains('Metin'));
     });
   });
 

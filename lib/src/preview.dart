@@ -7,6 +7,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
@@ -178,13 +179,99 @@ String _paragraphs(
 String? _readText(Archive a, String name) {
   final f = a.findFile(name);
   if (f == null || !f.isFile) return null;
-  final b = f.content;
-  // Çok büyük XML'in yalnızca başına bakmak yeter.
-  const cap = 600 * 1024;
-  return utf8.decode(
-    b.length > cap ? b.sublist(0, cap) : b,
-    allowMalformed: true,
-  );
+  // Çok büyük XML'in yalnızca başına bakmak yeter; zaten o kadarı açılıyor.
+  final b = readBoundedEntry(f, _xmlHeadBytes, truncate: true);
+  if (b == null) return null;
+  return utf8.decode(b, allowMalformed: true);
+}
+
+/// XML'den okunan baş kısım; sonrasına bakılmaz.
+const _xmlHeadBytes = 600 * 1024;
+
+/// Gömülü küçük resmin açılmış boyut tavanı.
+const _thumbMaxBytes = 3 * 1024 * 1024;
+
+/// Zip girdisinin açılmış baytlarından en çok [max] tanesini okur; girdiyi
+/// ASLA tamamen belleğe açmaz. Testlerde doğrudan sınanır.
+///
+/// Neden: `ArchiveFile.content` girdinin tamamını açar ve `size` yalnızca zip
+/// başlığındaki iddiadır; paket VM'de açılımı başlığa bakmadan yapıyor. Sıkıştırılmış
+/// birkaç KB'lık kötü niyetli (ya da bozuk) bir `.docx`/`.pptx` gigabaytlarca bellek
+/// ister ve uygulamayı çökertir. Gelen Kutusu WhatsApp ve İndirilenler'deki her
+/// belgeyi açılışta kendiliğinden önizlediği için bu, dosya silinene kadar her
+/// açılışta çökme demek olurdu. Burada `dart:io`nun parçalı zlib çözücüsü küçük
+/// parçalarla beslenir ve [max] bayt dolunca DURULUR: bellek ve süre, başlıkta ne
+/// yazarsa yazsın sınırlı kalır.
+///
+/// [truncate] doğruysa [max]'tan uzun girdinin ilk [max] baytı döner (metin
+/// önizlemesi başı yeter); yanlışsa tamamı gerekir ve [max]'ı aşan girdide null
+/// döner (gömülü resim yarım olamaz). Deflate ve depolanmış (sıkıştırmasız)
+/// girdiler desteklenir; bzip2 gibi diğerleri null döner (Office/ODF belgeleri
+/// bunları yazmaz, bzip2 ise açılım oranı sınırsız bir bomba yüzeyi).
+Uint8List? readBoundedEntry(ArchiveFile f, int max, {required bool truncate}) {
+  final raw = f.rawContent;
+  if (raw == null) {
+    // Bellekte kurulmuş girdi (testler): içerik zaten açık, ek bellek yok.
+    final b = f.content;
+    if (b.length <= max) return b;
+    return truncate ? Uint8List.sublistView(b, 0, max) : null;
+  }
+
+  final stream = raw.getStream(decompress: false);
+  final savePos = stream.position;
+  try {
+    final head = _HeadSink(max);
+    switch (f.compression) {
+      case CompressionType.deflate:
+        final conv = ZLibCodec(raw: true).decoder.startChunkedConversion(head);
+        while (!stream.isEOS && !head.overflowed) {
+          // 1 KB sıkıştırılmış veri en fazla ~1 MB açılır: tek adımda sınır
+          // belirgin biçimde aşılamaz.
+          conv.add(
+            stream.readBytes(math.min(1024, stream.length)).toUint8List(),
+          );
+        }
+        try {
+          conv.close(); // yerel zlib kaynağını bırak (kesik akışta hata verebilir)
+        } on Object {
+          // Yeterince okundu ya da akış yarım: önemli değil.
+        }
+      case CompressionType.none:
+        final n = math.min(stream.length, max + 1);
+        head.add(stream.readBytes(n).toUint8List());
+      default:
+        return null;
+    }
+    if (head.overflowed && !truncate) return null;
+    return head.bytes(max);
+  } finally {
+    stream.setPosition(savePos);
+  }
+}
+
+/// [max] bayta kadar toplar, bir bayt fazlasını tutup taşmayı bildirir.
+class _HeadSink implements Sink<List<int>> {
+  _HeadSink(this.max);
+
+  final int max;
+  final _buf = BytesBuilder(copy: false);
+
+  bool get overflowed => _buf.length > max;
+
+  @override
+  void add(List<int> chunk) {
+    final room = max + 1 - _buf.length;
+    if (room <= 0) return;
+    _buf.add(chunk.length <= room ? chunk : chunk.sublist(0, room));
+  }
+
+  Uint8List bytes(int limit) {
+    final all = _buf.toBytes();
+    return all.length <= limit ? all : Uint8List.sublistView(all, 0, limit);
+  }
+
+  @override
+  void close() {}
 }
 
 final _wP = RegExp(r'<w:p[ >].*?</w:p>', dotAll: true);
@@ -295,9 +382,10 @@ const _thumbNames = {
 Uint8List? _embeddedThumbnail(Archive a) {
   for (final f in a.files) {
     if (!f.isFile || !_thumbNames.contains(f.name.toLowerCase())) continue;
-    if (f.size > 3 * 1024 * 1024) continue;
-    final b = f.content;
-    if (_looksLikeImage(b)) return b;
+    if (f.size > _thumbMaxBytes) continue;
+    // Başlıktaki boyuta güvenmeden sınırlı oku; aşarsa resim yok.
+    final b = readBoundedEntry(f, _thumbMaxBytes, truncate: false);
+    if (b != null && _looksLikeImage(b)) return b;
   }
   return null;
 }
