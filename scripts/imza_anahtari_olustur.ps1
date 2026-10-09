@@ -1,4 +1,4 @@
-# Dosya Dolabı sürüm imza anahtarını BİR KEZ oluşturur ve GitHub secret'larına yükler.
+﻿# Dosya Dolabı sürüm imza anahtarını BİR KEZ oluşturur ve GitHub secret'larına yükler.
 #
 # - Anahtar ve şifresi depo DIŞINA yazılır (varsayılan: Belgeler\dosya-dolabi-imza).
 #   O klasörü USB'ye / Drive'a yedekle: anahtar kaybolursa sonraki sürümler eskisinin
@@ -22,10 +22,12 @@ if (Test-Path $anahtar) {
 
 $keytool = (Get-Command keytool -ErrorAction SilentlyContinue).Source
 if (-not $keytool) {
-    $java = (Get-Command java).Source
-    $keytool = Join-Path (Split-Path $java) 'keytool.exe'
+    # PATH'teki java çoğu zaman Oracle'ın javapath kısayolu; keytool JDK'nın bin'inde.
+    $keytool = Get-ChildItem 'C:\Program Files\Java', 'C:\Program Files\Eclipse Adoptium' `
+        -Recurse -Depth 3 -Filter keytool.exe -ErrorAction SilentlyContinue |
+        Select-Object -Last 1 -ExpandProperty FullName
 }
-if (-not (Test-Path $keytool)) { throw 'keytool bulunamadı (Java ile gelir).' }
+if (-not $keytool -or -not (Test-Path $keytool)) { throw 'keytool bulunamadı (Java ile gelir).' }
 
 New-Item -ItemType Directory -Force $Klasor | Out-Null
 
