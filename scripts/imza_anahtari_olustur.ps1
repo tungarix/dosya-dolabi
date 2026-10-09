@@ -16,6 +16,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $anahtar = Join-Path $Klasor 'dosya-dolabi-surum.jks'
+$sifreDosyasi = Join-Path $Klasor 'sifre.txt'
+if ((Test-Path $anahtar) -and -not (Test-Path $sifreDosyasi)) {
+    # Yarım kalmış önceki deneme: şifresi kaydedilmemiş anahtar kullanılamaz.
+    # Silinmez, kenara alınır.
+    $kenar = "$anahtar.yarim-$(Get-Date -Format yyyyMMddHHmmss)"
+    Move-Item $anahtar $kenar
+    Write-Host "Şifresiz yarım anahtar kenara alındı: $kenar"
+}
 if (Test-Path $anahtar) {
     throw "Anahtar zaten var: $anahtar. Üzerine yazılmaz; yeni anahtar eski APK'larla uyumsuz olur."
 }
@@ -38,13 +46,16 @@ $bayt = New-Object byte[] 32
 $rng.GetBytes($bayt)
 $sifre = -join ($bayt | ForEach-Object { $harfler[$_ % $harfler.Length] })
 
+# keytool ve gh bilgi satırlarını stderr'e yazar; Windows PowerShell 5.1 bunu Stop
+# altında hata sayıp betiği keserdi. Buradan sonra yalnız çıkış kodlarına bakılır.
+$ErrorActionPreference = 'Continue'
 & $keytool -genkeypair -keystore $anahtar -storetype PKCS12 -alias dosya-dolabi `
     -keyalg RSA -keysize 4096 -validity 10000 `
     -storepass $sifre -keypass $sifre `
-    -dname 'CN=Aktenak Dosya Dolabi, O=Aktenak, C=TR' 2>&1 | Out-Null
+    -dname 'CN=Aktenak Dosya Dolabi, O=Aktenak, C=TR' 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'keytool anahtarı oluşturamadı.' }
 
-Set-Content -Path (Join-Path $Klasor 'sifre.txt') -Value $sifre -Encoding ascii -NoNewline
+Set-Content -Path $sifreDosyasi -Value $sifre -Encoding ascii -NoNewline
 @"
 Dosya Dolabı sürüm imza anahtarı ($(Get-Date -Format yyyy-MM-dd))
 Alias: dosya-dolabi. Şifre: sifre.txt (anahtar ve alias için aynı).
@@ -61,6 +72,6 @@ $sifre = $null
 
 Write-Host "Tamam. Anahtar: $Klasor"
 Write-Host 'Sertifika parmak izi:'
-& $keytool -list -v -keystore $anahtar -storepass (Get-Content (Join-Path $Klasor 'sifre.txt') -Raw) -alias dosya-dolabi |
+& $keytool -list -v -keystore $anahtar -storepass (Get-Content (Join-Path $Klasor 'sifre.txt') -Raw) -alias dosya-dolabi 2>$null |
     Select-String 'SHA256:'
 Write-Host "Şimdi bu klasörü yedekle: $Klasor"
