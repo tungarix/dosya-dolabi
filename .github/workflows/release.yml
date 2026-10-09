@@ -1,0 +1,135 @@
+name: Release
+
+# APK artık yerelde değil burada derlenir (v1.1.1'den itibaren): laptopta
+# Android SDK tutmaya gerek yok ve imza anahtarı disk temizliğiyle kaybolmaz.
+# Anahtar depoda değil, GitHub secret'larında (bkz. guvenlik/incelemeler/README.md).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# En az yetki: release oluşturmak (contents), attestation üretmek
+# (id-token + attestations) için gerekenin ötesine çıkma.
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Güvenlik kapısı önceki etiketi ve incelenen commit'i görmeli.
+          fetch-depth: 0
+
+      # Etiketli sürümde, o sürümün güvenlik incelemesi kayıtlı ve güncel değilse
+      # derleme başlamaz. Etiket adı komuta gömülmüyor, ortam değişkeninden
+      # okunuyor (script injection).
+      - name: Güvenlik kapısı
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ETIKET: ${{ github.ref_name }}
+        run: python3 scripts/guvenlik_kapisi.py "$ETIKET"
+
+      - name: Etiket ile pubspec sürümü aynı mı
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ETIKET: ${{ github.ref_name }}
+        run: |
+          surum="$(sed -n 's/^version: *\([0-9.]*\)+.*/\1/p' pubspec.yaml)"
+          if [ "v$surum" != "$ETIKET" ]; then
+            echo "::error::pubspec.yaml sürümü v$surum, etiket $ETIKET."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+
+      - name: Bağımlılıklar
+        run: flutter pub get
+
+      - name: Analiz
+        run: flutter analyze
+
+      - name: Testler (derlemeden önce)
+        run: flutter test
+
+      # Etiketli sürümde anahtar şart: yoksa debug anahtarıyla imzalı, eskisinin
+      # üstüne kurulmayan bir APK yayımlanırdı. Elle çalıştırmada (deneme)
+      # anahtar yoksa debug ile derlenir, yalnız artifact olarak yüklenir.
+      - name: İmza anahtarını hazırla
+        env:
+          ANAHTAR_B64: ${{ secrets.DOSYA_DOLABI_KEYSTORE_BASE64 }}
+          ETIKETLI: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          if [ -z "$ANAHTAR_B64" ]; then
+            if [ "$ETIKETLI" = "true" ]; then
+              echo "::error::DOSYA_DOLABI_KEYSTORE_BASE64 secret'ı yok; sürüm imzalanamaz."
+              exit 1
+            fi
+            echo "::warning::Anahtar yok, debug imzasıyla derleniyor (yalnız deneme)."
+            exit 0
+          fi
+          printf '%s' "$ANAHTAR_B64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/surum.jks"
+          echo "DOSYA_DOLABI_KEYSTORE=$RUNNER_TEMP/surum.jks" >> "$GITHUB_ENV"
+
+      - name: APK derle
+        env:
+          DOSYA_DOLABI_KEYSTORE_PASSWORD: ${{ secrets.DOSYA_DOLABI_KEYSTORE_PASSWORD }}
+        run: flutter build apk --release
+
+      - name: Anahtar dosyasını sil
+        if: always()
+        run: rm -f "$RUNNER_TEMP/surum.jks"
+
+      # İmzayı gerçekten doğrula ve sertifika özetini kayda geçir: release
+      # notundaki parmak izi, kullanıcının APK'yı kontrol edebileceği değer.
+      - name: İmzayı doğrula, dosyayı adlandır
+        id: apk
+        env:
+          ETIKET: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'deneme' }}
+        run: |
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          "$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | tee imza.txt
+          ad="Dosya-Dolabi-${ETIKET#v}.apk"
+          mkdir -p cikti
+          cp build/app/outputs/flutter-apk/app-release.apk "cikti/$ad"
+          (cd cikti && sha256sum "$ad" > SHA256SUMS.txt)
+          cat cikti/SHA256SUMS.txt
+          echo "ad=$ad" >> "$GITHUB_OUTPUT"
+
+      - name: Build provenance attestation üret
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: cikti/${{ steps.apk.outputs.ad }}
+
+      - name: Taslak (draft) release oluştur
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ETIKET: ${{ github.ref_name }}
+          AD: ${{ steps.apk.outputs.ad }}
+        run: >
+          gh release create "$ETIKET"
+          "cikti/$AD" cikti/SHA256SUMS.txt
+          --draft
+          --title "Dosya Dolabı $ETIKET"
+          --notes ""
+
+      - name: Artifact olarak yükle (yalnızca elle çalıştırma)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dosya-Dolabi-apk
+          path: cikti/

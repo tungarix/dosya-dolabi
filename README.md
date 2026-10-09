@@ -73,9 +73,11 @@ tasarlandı.
 - Slayt ve Word sayfaları çizilemez: dosyanın içinde gömülü küçük resim yoksa yalnızca
   metin gösterilir (PowerPoint'in kaydettiği dosyalarda genelde vardır).
 - Yüzlerce dosyalı bir klasörde kaydırma akıcılığı henüz ölçülmedi.
-- APK hata ayıklama anahtarıyla imzalıdır. Güncellemenin eskisinin üstüne kurulabilmesi
-  için aynı anahtarla derlenmesi gerekir; başka bir bilgisayardan derlenen sürüm var olan
-  kurulumun üstüne kurulmaz.
+- **1.0.0 / 1.1.0'dan 1.1.1'e geçişte bir kez kaldırıp kurman gerekir.** O sürümler
+  hata ayıklama anahtarıyla imzalıydı ve o anahtar kayboldu; 1.1.1'den itibaren APK'lar
+  GitHub'da kalıcı bir sürüm anahtarıyla imzalanıyor, sonraki sürümler yine üstüne kurulur.
+  Kaldırmak dosyalarını silmez: kategoriler `Dosya Dolabı` klasöründe gerçek klasörler.
+  Yalnız "Tüm dosyalara erişim" iznini bir kez yeniden verirsin.
 
 ## Derleme
 
@@ -104,9 +106,11 @@ Windows sürümü yalnızca geliştirme içindir; hedef Android'dir.
 - İzin işi (`Tüm dosyalara erişim`) `permission_handler` yerine
   `MainActivity.kt` içinde yazıldı: eklentinin 14.x sürümü Android 37 API'si
   istiyor ve SDK'da platform adı `android-37.0` olduğundan Gradle bulamıyor.
-- APK, hata ayıklama anahtarıyla imzalanır; güncellemenin eskisinin üstüne
-  kurulabilmesi için aynı bilgisayardan (aynı `~/.android/debug.keystore`)
-  derlemek gerekir.
+- Yayımlanan APK yalnız GitHub Actions'ta (`release.yml`) derlenir ve sürüm
+  anahtarıyla imzalanır; anahtar depoda değil, secret'larda
+  (`DOSYA_DOLABI_KEYSTORE_BASE64`, `DOSYA_DOLABI_KEYSTORE_PASSWORD`). Bir kez
+  `scripts/imza_anahtari_olustur.ps1` ile oluşturuldu; yedeği depo dışında.
+  Yerel `flutter build apk` secret olmadan debug anahtarıyla imzalar, yalnız deneme içindir.
 - Sürüm çıkarma sırası ve güvenlik incelemesi: `guvenlik/incelemeler/README.md`.
   İncelemesi kayıtlı olmayan bir release yayımlanırsa `guvenlik-kapisi.yml`
   onu taslağa geri çeker.

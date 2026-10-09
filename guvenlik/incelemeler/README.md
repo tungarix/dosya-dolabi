@@ -2,9 +2,10 @@
 
 Her `vX.Y.Z` sürümü yayımlanmadan önce, önceki sürümden bu yana değişen kod
 güvenlik açısından incelenir ve sonuç bu klasöre `vX.Y.Z.md` olarak yazılır.
-APK yerelde derlendiği için kapı yayımlama anında çalışır: bir release
-yayımlandığında `.github/workflows/guvenlik-kapisi.yml`, `scripts/guvenlik_kapisi.py`
-ile kaydı denetler. Kayıt yoksa ya da güncel değilse release taslağa geri çekilir.
+Kapı iki yerde çalışır: v1.1.1'den itibaren APK `release.yml` ile GitHub'da
+derlenir ve kapı derlemenin ilk adımıdır (kayıt yoksa derleme başlamaz). Ayrıca bir
+release yayımlandığında `guvenlik-kapisi.yml` kaydı yeniden denetler; yoksa ya da
+güncel değilse release taslağa geri çekilir.
 
 ## Sıra
 
@@ -15,10 +16,10 @@ ile kaydı denetler. Kayıt yoksa ya da güncel değilse release taslağa geri �
 4. Kaydı yaz, commit et ve `main`'e push et. Bu commit'te kayıt dışında dosya olmasın.
 5. Etiketle ve kapıyı yerelde dene:
    `git tag vX.Y.Z && python scripts/guvenlik_kapisi.py vX.Y.Z && git push origin vX.Y.Z`
-6. APK'yı bu bilgisayarda derle (aynı `~/.android/debug.keystore`), `dagitim/`
-   altına `Dosya-Dolabi-X.Y.Z.apk` olarak koy ve taslak release aç:
-   `gh release create vX.Y.Z dagitim/Dosya-Dolabi-X.Y.Z.apk --draft`.
-7. Taslaktaki APK'yı cihazda dene, sonra yayımla. Kapı yayımlamada yeniden denetler.
+6. Etiket push'u `release.yml`'i tetikler: kapı, analiz, testler, sürüm anahtarıyla
+   imzalı APK, imza doğrulama, SHA-256 ve attestation; sonunda taslak release açılır.
+   Yerelde derleme ya da `dagitim/` gerekmez.
+7. Taslaktaki APK'yı cihazda dene, notu yaz, sonra yayımla. Kapı yayımlamada yeniden denetler.
 
 İncelemeden sonra kayıt dışında bir dosya değişirse kapı kapanır: incelemeyi
 yenile, `Kapsam:`'ın sonundaki commit'i güncelle.
