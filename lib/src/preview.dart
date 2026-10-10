@@ -623,6 +623,12 @@ bool _checkZipDirectory(RandomAccessFile f) {
   var localBytes = 0;
   while (p + 4 <= cd.length && _u32(cd, p) == 0x02014b50) {
     if (p + 46 > cd.length || ++entries > _maxZipEntries) return false;
+    // Unix'te yazılmış sembolik bağlantı girdisini archive, ayrıştırırken
+    // sınırsız açar (readBytes): Office/ODF belgesinde bulunmaz, reddedilir.
+    if (_u16(cd, p + 4) >> 8 == 3 &&
+        (_u32(cd, p + 38) >> 16) & 0xF000 == 0xA000) {
+      return false;
+    }
     final local = _u32(cd, p + 42);
     p += 46 + _u16(cd, p + 28) + _u16(cd, p + 30) + _u16(cd, p + 32);
     if (p > cd.length || local == 0xFFFFFFFF || local + 30 > len) return false;
@@ -631,7 +637,10 @@ bool _checkZipDirectory(RandomAccessFile f) {
     localBytes += _u16(h, 26) + _u16(h, 28);
     if (localBytes > _maxLocalNameExtraBytes) return false;
   }
-  return true;
+  // 1-3 baytlık artıkta archive imzayı dizin sınırının ötesinden okur ve
+  // denetlenmemiş bir kayıt daha üretir.
+  final rest = cd.length - p;
+  return rest == 0 || rest >= 4;
 }
 
 /// Dosyadan okuyarak [archivePreview] üretir (bozuk dosyada null). Ayrı iş

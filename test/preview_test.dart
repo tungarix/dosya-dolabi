@@ -540,6 +540,45 @@ void main() {
       expect(hizli(() => zipDocumentPreview(path, 'docx')), isNull);
     });
 
+    /// [zip]'teki ilk merkezi dizin kaydının konumu.
+    int ilkKayit(Uint8List zip) {
+      for (var i = 0; i + 4 <= zip.length; i++) {
+        if (zip[i] == 0x50 && zip[i + 1] == 0x4B && zip[i + 2] == 1 && zip[i + 3] == 2) {
+          return i;
+        }
+      }
+      throw StateError('merkezi dizin yok');
+    }
+
+    test('Unix sembolik bağlantı girdisi reddedilir (archive onu sınırsız açar)', () {
+      final zip = makeZip({
+        'word/document.xml': '<w:p><w:r><w:t>Merhaba</w:t></w:r></w:p>',
+      });
+      final k = ilkKayit(zip);
+      ByteData.sublistView(zip)
+        ..setUint16(k + 4, 0x031E, Endian.little) // Unix'te yazıldı
+        ..setUint32(k + 38, 0xA1FF0000, Endian.little); // tür: sembolik bağlantı
+      final path = write('baglanti.docx', zip);
+      expect(zipDirectoryIsBounded(path), isFalse);
+      expect(zipDocumentPreview(path, 'docx'), isNull);
+    });
+
+    test('dizin sonunda 1-3 baytlık artık reddedilir', () {
+      final zip = makeZip({
+        'word/document.xml': '<w:p><w:r><w:t>Merhaba</w:t></w:r></w:p>',
+      });
+      // Dizinle EOCD arasına 2 bayt ekle ve dizin boyutunu 2 büyüt: son
+      // kayıttan sonra dizinin içinde 2 baytlık artık kalır.
+      final e = zip.length - 22;
+      final eocd = Uint8List.fromList(zip.sublist(e));
+      final bd = ByteData.sublistView(eocd);
+      bd.setUint32(12, bd.getUint32(12, Endian.little) + 2, Endian.little);
+      final path = write('artik.docx', [...zip.sublist(0, e), 0x50, 0x4B, ...eocd]);
+      expect(zipDirectoryIsBounded(path), isFalse);
+      // Artıksız aynı dosya geçer (testin doğru yeri sınadığını gösterir).
+      expect(zipDirectoryIsBounded(write('temiz.docx', zip)), isTrue);
+    });
+
     test('kapanmayan paragraf etiketleri doğrusal sürede biter (docx)', () {
       final path = write(
         'b.docx',
