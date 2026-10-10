@@ -479,6 +479,115 @@ void main() {
     });
   });
 
+  group('zip dizini ve metin taraması sınırlı', () {
+    late Directory tmp;
+    setUp(() => tmp = Directory.systemTemp.createTempSync('sinir_'));
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    String write(String name, List<int> bytes) =>
+        (File(p.join(tmp.path, name))..writeAsBytesSync(bytes)).path;
+
+    /// [ms] milisaniyeden kısa sürmeli; eski karesel tarama dakikalar sürerdi.
+    T hizli<T>(T Function() f, {int ms = 3000}) {
+      final sw = Stopwatch()..start();
+      final r = f();
+      expect(sw.elapsedMilliseconds, lessThan(ms));
+      return r;
+    }
+
+    test('normal belgenin dizini sınır içinde', () {
+      final path = write(
+        'a.docx',
+        makeZip({'word/document.xml': '<w:p><w:r><w:t>Merhaba</w:t></w:r></w:p>'}),
+      );
+      expect(zipDirectoryIsBounded(path), isTrue);
+    });
+
+    test('aynı dev yerel başlığı gösteren binlerce kayıt reddedilir', () {
+      // Tek yerel başlık: 64 KB ad + 64 KB ek alan. 2000 merkezi kayıt hepsi
+      // onu gösterir; archive 4.3.0 bunu ~260 MB belleğe çevirirdi.
+      final b = BytesBuilder();
+      void u16(int v) => b.add([v & 0xFF, (v >> 8) & 0xFF]);
+      void u32(int v) {
+        u16(v & 0xFFFF);
+        u16((v >> 16) & 0xFFFF);
+      }
+
+      u32(0x04034b50);
+      u16(20); u16(0); u16(0); u16(0); u16(0); // sürüm, bayrak, yöntem, saat, tarih
+      u32(0); u32(0); u32(0); // crc, boyutlar
+      u16(0xFFFF); u16(0xFFFF);
+      b.add(List.filled(0xFFFF, 0x61));
+      b.add(List.filled(0xFFFF, 0));
+      final cdOffset = b.length;
+      const n = 2000;
+      for (var i = 0; i < n; i++) {
+        u32(0x02014b50);
+        u16(20); u16(20); u16(0); u16(0); u16(0); u16(0);
+        u32(0); u32(0); u32(0);
+        u16(0); u16(0); u16(0); u16(0); u16(0);
+        u32(0);
+        u32(0); // yerel başlık konumu: hepsi 0
+      }
+      final cdSize = b.length - cdOffset;
+      u32(0x06054b50);
+      u16(0); u16(0); u16(n); u16(n);
+      u32(cdSize); u32(cdOffset);
+      u16(0);
+      final path = write('bomba.docx', b.toBytes());
+
+      expect(zipDirectoryIsBounded(path), isFalse);
+      expect(hizli(() => zipDocumentPreview(path, 'docx')), isNull);
+    });
+
+    test('kapanmayan paragraf etiketleri doğrusal sürede biter (docx)', () {
+      final path = write(
+        'b.docx',
+        makeZip({'word/document.xml': '<w:p ' * 122880}), // 600 KB
+      );
+      expect(hizli(() => zipDocumentPreview(path, 'docx')), isNull);
+    });
+
+    test('eşleşmeyen slayt kimlikleri çapraz taranmaz (pptx)', () {
+      final path = write(
+        'c.pptx',
+        makeZip({
+          'ppt/presentation.xml': '<p:sldId r:id="a"/>' * 30000,
+          'ppt/_rels/presentation.xml.rels':
+              '<Relationship Id="b" Target="x"/>' * 40000,
+        }),
+      );
+      expect(hizli(() => zipDocumentPreview(path, 'pptx')), isNull);
+    });
+
+    test('kapanmayan "<" ile dolu ODF ve xlsx de doğrusal', () {
+      final odt = write(
+        'd.odt',
+        makeZip({'content.xml': '<text:p >${'<' * 300000}</text:p>'}),
+      );
+      expect(hizli(() => zipDocumentPreview(odt, 'odt')), isNull);
+      final xlsx = write(
+        'e.xlsx',
+        makeZip({'xl/sharedStrings.xml': '<si>' * 150000}),
+      );
+      expect(hizli(() => zipDocumentPreview(xlsx, 'xlsx')), isNull);
+    });
+
+    test('yeni tarayıcı eski biçemleri aynen okur', () {
+      final pv = archivePreview(
+        ZipDecoder().decodeBytes(
+          makeZip({
+            'word/document.xml':
+                '<w:body><w:p w:rsidR="1"><w:r><w:tab/><w:t xml:space="preserve">Bir </w:t></w:r>'
+                '<w:r><w:t>iki</w:t></w:r></w:p><w:p/><w:p><w:r><w:t>&amp; üç</w:t></w:r></w:p></w:body>',
+          }),
+        ),
+        'docx',
+      );
+      expect(pv!.text, 'Bir iki\n& üç');
+    });
+  });
+
   group('önbellek', () {
     test('aynı önizlemeyi aynı anda iki kez üretmez', () async {
       final src = FakeSource();

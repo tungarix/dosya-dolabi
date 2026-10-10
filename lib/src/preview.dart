@@ -148,25 +148,161 @@ String unescapeXml(String s) => s.replaceAllMapped(_entity, (m) {
   }
 });
 
-final _tag = RegExp(r'<[^>]+>');
+// XML taraması bilerek düzenli ifadeyle DEĞİL, indexOf ile yapılır. Neden:
+// `<w:p[ >].*?</w:p>` gibi tembel desenler, kapanmayan açılış etiketleriyle
+// dolu bir girdide her başlangıçtan sona kadar tarar (karesel). 600 KB'lık ve
+// sıkıştırılmış hâli birkaç KB olan kötü niyetli bir belge, önizleme işçisini
+// dakikalarca meşgul eder; üç tanesi bütün önizlemeleri durdurur. Aşağıdaki
+// tarayıcılar her baytı en fazla birkaç kez okur: süre girdiyle doğrusal kalır.
 
-/// XML'den paragraf paragraf metin toplar: her [paragraph] eşleşmesinin
-/// içindeki [run] eşleşmeleri birleştirilir.
+/// [text] içinde [pattern]'i arar; bulunan yeri hatırlar ki aynı desen her
+/// seferinde sona kadar yeniden taranmasın. [from] çağrıları hiç geriye
+/// gitmeyen başlangıçlarla yapılmalı.
+class _Finder {
+  _Finder(this.text, this.pattern);
+
+  final String text;
+  final String pattern;
+  var _at = -2; // -2: henüz aranmadı, -1: metinde artık yok
+
+  int from(int start) {
+    if (_at == -1 || _at >= start) return _at;
+    return _at = text.indexOf(pattern, start);
+  }
+}
+
+bool _endsName(String s, int i) {
+  if (i >= s.length) return false;
+  final c = s.codeUnitAt(i);
+  // boşluk, sekme, satır sonu, '>' ya da '/'
+  return c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D || c == 0x3E || c == 0x2F;
+}
+
+/// [opens]'tan biriyle başlayan her öğenin (ör. `<w:t` + boşluk ya da `>`)
+/// açılış etiketinden sonraki ve [closes]'tan ilkine kadarki iç metni ile
+/// öğenin tamamı. Kendi kendini kapatan `<x/>` öğeleri atlanır.
+Iterable<({String inner, String whole})> _elements(
+  String xml,
+  List<String> opens,
+  List<String> closes,
+) sync* {
+  final o = [for (final s in opens) _Finder(xml, s)];
+  final c = [for (final s in closes) _Finder(xml, s)];
+  final gt = _Finder(xml, '>');
+  var pos = 0;
+  while (true) {
+    var s = -1;
+    var sLen = 0;
+    for (var i = 0; i < o.length; i++) {
+      var at = o[i].from(pos);
+      // `<w:tab/>` gibi aynı önekle başlayan başka adları atla.
+      while (at >= 0) {
+        final k = at + opens[i].length;
+        if (_endsName(xml, k) && xml.codeUnitAt(k) != 0x2F) break;
+        at = o[i].from(at + 1);
+      }
+      if (at >= 0 && (s < 0 || at < s)) {
+        s = at;
+        sLen = opens[i].length;
+      }
+    }
+    if (s < 0) return;
+    final g = gt.from(s + sLen);
+    if (g < 0) return;
+    var e = -1;
+    var eLen = 0;
+    for (var i = 0; i < c.length; i++) {
+      final at = c[i].from(g + 1);
+      if (at >= 0 && (e < 0 || at < e)) {
+        e = at;
+        eLen = closes[i].length;
+      }
+    }
+    if (e < 0) return; // kapanış yok: sonraki hiçbir öğe de kapanamaz
+    yield (inner: xml.substring(g + 1, e), whole: xml.substring(s, e + eLen));
+    pos = e + eLen;
+  }
+}
+
+/// `<...>` etiketlerini atar (`<[^>]+>` ile aynı sonuç, doğrusal zamanda).
+String _stripTags(String s) {
+  final out = StringBuffer();
+  var i = 0;
+  while (i < s.length) {
+    final lt = s.indexOf('<', i);
+    if (lt < 0) {
+      out.write(s.substring(i));
+      break;
+    }
+    out.write(s.substring(i, lt));
+    if (lt + 1 < s.length && s.codeUnitAt(lt + 1) == 0x3E) {
+      out.write('<'); // "<>" etiket değil
+      i = lt + 1;
+      continue;
+    }
+    final gt = s.indexOf('>', lt + 1);
+    if (gt < 0) {
+      out.write(s.substring(lt)); // kapanmayan '<': sonrasında etiket yok
+      break;
+    }
+    i = gt + 1;
+  }
+  return out.toString();
+}
+
+/// Bir XML biçemi: paragraf öğeleri ve içlerindeki metin parçaları.
+typedef _Shape = ({
+  List<String> pOpen,
+  List<String> pClose,
+  List<String> rOpen,
+  List<String> rClose,
+});
+
+const _Shape _word = (
+  pOpen: ['<w:p'],
+  pClose: ['</w:p>'],
+  rOpen: ['<w:t'],
+  rClose: ['</w:t>'],
+);
+const _Shape _slide = (
+  pOpen: ['<a:p'],
+  pClose: ['</a:p>'],
+  rOpen: ['<a:t'],
+  rClose: ['</a:t>'],
+);
+const _Shape _sharedStrings = (
+  pOpen: ['<si'],
+  pClose: ['</si>'],
+  rOpen: ['<t'],
+  rClose: ['</t>'],
+);
+const _Shape _odf = (
+  pOpen: ['<text:p', '<text:h'],
+  pClose: ['</text:p>', '</text:h>'],
+  rOpen: [],
+  rClose: [],
+);
+
+/// XML'den paragraf paragraf metin toplar: her paragrafın içindeki metin
+/// parçaları birleştirilir ([stripTags] ise etiketler atılıp kalanı alınır).
 String _paragraphs(
-  String xml, {
-  required RegExp paragraph,
-  required RegExp run,
+  String xml,
+  _Shape shape, {
   bool stripTags = false,
+  int? maxChars,
   required bool long,
 }) {
   final out = <String>[];
   var total = 0;
-  final limit = long ? 1600 : 360;
-  for (final p in paragraph.allMatches(xml)) {
-    final body = p[0]!;
+  final limit = maxChars ?? (long ? 1600 : 360);
+  for (final p in _elements(xml, shape.pOpen, shape.pClose)) {
     final text = stripTags
-        ? unescapeXml(body.replaceAll(_tag, ''))
-        : run.allMatches(body).map((m) => unescapeXml(m[1]!)).join();
+        ? unescapeXml(_stripTags(p.whole))
+        : _elements(
+            p.whole,
+            shape.rOpen,
+            shape.rClose,
+          ).map((r) => unescapeXml(r.inner)).join();
     final t = text.trim();
     if (t.isEmpty) continue;
     out.add(t);
@@ -274,13 +410,37 @@ class _HeadSink implements Sink<List<int>> {
   void close() {}
 }
 
-final _wP = RegExp(r'<w:p[ >].*?</w:p>', dotAll: true);
-final _wT = RegExp(r'<w:t(?: [^>]*)?>(.*?)</w:t>', dotAll: true);
-final _aP = RegExp(r'<a:p[ >].*?</a:p>', dotAll: true);
-final _aT = RegExp(r'<a:t(?: [^>]*)?>(.*?)</a:t>', dotAll: true);
-final _odfP = RegExp(r'<text:(?:p|h)[ >].*?</text:(?:p|h)>', dotAll: true);
-final _si = RegExp(r'<si>.*?</si>', dotAll: true);
-final _t = RegExp(r'<t(?: [^>]*)?>(.*?)</t>', dotAll: true);
+/// [xml]'deki her `<name ...>` açılış etiketinin tamamı (doğrusal zaman).
+Iterable<String> _tags(String xml, String name) sync* {
+  final open = '<$name';
+  var pos = 0;
+  while (true) {
+    final s = xml.indexOf(open, pos);
+    if (s < 0) return;
+    final k = s + open.length;
+    if (!_endsName(xml, k)) {
+      pos = k; // `<p:sldIdLst` gibi daha uzun bir ad
+      continue;
+    }
+    final g = xml.indexOf('>', k);
+    if (g < 0) return;
+    yield xml.substring(s, g + 1);
+    pos = g + 1;
+  }
+}
+
+/// Etiketteki `name="..."` özniteliğinin değeri (adın önünde boşluk olmalı).
+String? _attr(String tag, String name) {
+  final key = '$name="';
+  var i = tag.indexOf(key);
+  while (i > 0 && !_endsName(tag, i - 1)) {
+    i = tag.indexOf(key, i + 1);
+  }
+  if (i <= 0) return null;
+  final start = i + key.length;
+  final end = tag.indexOf('"', start);
+  return end < 0 ? null : tag.substring(start, end);
+}
 
 /// Sunumdaki ilk slaytların (sunum sırasıyla) dosya yolları.
 List<String> _slidePaths(Archive a) {
@@ -288,21 +448,18 @@ List<String> _slidePaths(Archive a) {
   final rels = _readText(a, 'ppt/_rels/presentation.xml.rels');
   final paths = <String>[];
   if (pres != null && rels != null) {
-    for (final m in RegExp(
-      r'<p:sldId\b[^>]*\br:id="([^"]+)"',
-    ).allMatches(pres)) {
-      final rid = m[1]!;
-      for (final r in RegExp(r'<Relationship\b[^>]*>').allMatches(rels)) {
-        final tag = r[0]!;
-        if (!RegExp('\\bId="${RegExp.escape(rid)}"').hasMatch(tag)) continue;
-        final target = RegExp(r'\bTarget="([^"]+)"').firstMatch(tag)?[1];
-        if (target != null) {
-          paths.add(
-            target.startsWith('/') ? target.substring(1) : 'ppt/$target',
-          );
-        }
-        break;
-      }
+    // İlişkiler bir kez tabloya dökülür; her slayt için yeniden taranmaz.
+    final targets = <String, String>{};
+    for (final tag in _tags(rels, 'Relationship')) {
+      final id = _attr(tag, 'Id');
+      final target = _attr(tag, 'Target');
+      if (id != null && target != null) targets.putIfAbsent(id, () => target);
+    }
+    for (final tag in _tags(pres, 'p:sldId')) {
+      final rid = _attr(tag, 'r:id');
+      final target = rid == null ? null : targets[rid];
+      if (target == null) continue;
+      paths.add(target.startsWith('/') ? target.substring(1) : 'ppt/$target');
       if (paths.length >= 3) break;
     }
   }
@@ -325,7 +482,7 @@ String? _pptxText(Archive a, {required bool long}) {
   for (final path in _slidePaths(a)) {
     final xml = _readText(a, path);
     if (xml == null) continue;
-    final t = _paragraphs(xml, paragraph: _aP, run: _aT, long: long);
+    final t = _paragraphs(xml, _slide, long: long);
     if (t.isNotEmpty) return t;
   }
   return null;
@@ -334,36 +491,22 @@ String? _pptxText(Archive a, {required bool long}) {
 String? _docxText(Archive a, {required bool long}) {
   final xml = _readText(a, 'word/document.xml');
   if (xml == null) return null;
-  final t = _paragraphs(xml, paragraph: _wP, run: _wT, long: long);
+  final t = _paragraphs(xml, _word, long: long);
   return t.isEmpty ? null : t;
 }
 
 String? _xlsxText(Archive a, {required bool long}) {
   final xml = _readText(a, 'xl/sharedStrings.xml');
   if (xml == null) return null;
-  final out = <String>[];
-  for (final si in _si.allMatches(xml)) {
-    final s = _t
-        .allMatches(si[0]!)
-        .map((m) => unescapeXml(m[1]!))
-        .join()
-        .trim();
-    if (s.isNotEmpty) out.add(s);
-    if (out.length >= (long ? 40 : 10)) break;
-  }
-  return out.isEmpty ? null : out.join('\n');
+  // Tabloda karakter değil yalnızca satır sınırı vardır (her hücre kısa).
+  final t = _paragraphs(xml, _sharedStrings, maxChars: 1 << 30, long: long);
+  return t.isEmpty ? null : t;
 }
 
 String? _odfText(Archive a, {required bool long}) {
   final xml = _readText(a, 'content.xml');
   if (xml == null) return null;
-  final t = _paragraphs(
-    xml,
-    paragraph: _odfP,
-    run: _t, // kullanılmaz (stripTags)
-    stripTags: true,
-    long: long,
-  );
+  final t = _paragraphs(xml, _odf, stripTags: true, long: long);
   return t.isEmpty ? null : t;
 }
 
@@ -407,9 +550,94 @@ Preview? archivePreview(Archive a, String ext, {bool long = false}) {
   return text == null ? null : Preview.text(text);
 }
 
+/// Zip dizininin üst sınırları. Gerçek Office/ODF belgeleri bunların çok
+/// altında kalır (yüzlerce girdi, girdi başına onlarca baytlık ad).
+const _maxZipEntries = 10000;
+const _maxCentralDirBytes = 4 * 1024 * 1024;
+const _maxLocalNameExtraBytes = 2 * 1024 * 1024;
+
+int _u16(Uint8List b, int o) => b[o] | (b[o + 1] << 8);
+int _u32(Uint8List b, int o) => _u16(b, o) | (_u16(b, o + 2) << 16);
+
+Uint8List _readAt(RandomAccessFile f, int pos, int n) {
+  f.setPositionSync(pos);
+  final b = f.readSync(n);
+  if (b.length != n) throw const FormatException('kısa okuma');
+  return b;
+}
+
+/// `archive` paketine vermeden önce zip'in dizinini kendimiz, sınırlı bellekle
+/// okuyup makul olup olmadığına bakar.
+///
+/// Neden: [readBoundedEntry] girdi İÇERİĞİNİ sınırlar ama `ZipDecoder` ondan
+/// önce dizini ayrıştırır. archive 4.3.0 merkezi dizindeki HER kayıt için o
+/// kaydın gösterdiği yerel başlığın adını (64 KB'a kadar) ve ek alanını (64
+/// KB'a kadar) kopyalayıp tutar; kayıt sayısına sınır koymaz ve binlerce
+/// kaydın aynı dev başlığı göstermesine izin verir. 46 baytlık her kayıt
+/// ~128 KB bellek tutar: ~1 MB'lık bir `.docx` gigabaytlar ister. Gelen
+/// Kutusu belgeleri kendiliğinden önizlendiği için bu, dosya kalana kadar
+/// her açılışta bellek taşması olurdu.
+///
+/// Burada archive'ın okuyacağı dizin (sondan geriye ilk EOCD imzası) aynı
+/// biçimde bulunur; kayıt sayısı, dizin boyutu ve yerel başlıklardaki ad + ek
+/// alan toplamı tavanları aşarsa false döner. Zip64 belgeler önizlenmez.
+bool zipDirectoryIsBounded(String path) {
+  RandomAccessFile? f;
+  try {
+    f = File(path).openSync();
+    return _checkZipDirectory(f);
+  } on Object {
+    return false;
+  } finally {
+    f?.closeSync();
+  }
+}
+
+bool _checkZipDirectory(RandomAccessFile f) {
+  final len = f.lengthSync();
+  if (len < 22) return false;
+  // Yorum en çok 65535 bayt: geçerli zip'te EOCD son 22+65535 bayttadır.
+  final tailLen = math.min(len, 22 + 0xFFFF);
+  final tail = _readAt(f, len - tailLen, tailLen);
+  var e = -1;
+  for (var i = tailLen - 22; i >= 0; i--) {
+    if (tail[i] == 0x50 &&
+        tail[i + 1] == 0x4B &&
+        tail[i + 2] == 0x05 &&
+        tail[i + 3] == 0x06) {
+      e = i;
+      break;
+    }
+  }
+  if (e < 0) return false;
+  final eocd = len - tailLen + e;
+  if (eocd >= 20 && _u32(_readAt(f, eocd - 20, 4), 0) == 0x07064b50) {
+    return false; // Zip64: archive dizini başka yerden okur
+  }
+  final cdSize = _u32(tail, e + 12);
+  final cdOffset = _u32(tail, e + 16);
+  if (cdSize > _maxCentralDirBytes || cdOffset + cdSize > eocd) return false;
+  final cd = _readAt(f, cdOffset, cdSize);
+  var p = 0;
+  var entries = 0;
+  var localBytes = 0;
+  while (p + 4 <= cd.length && _u32(cd, p) == 0x02014b50) {
+    if (p + 46 > cd.length || ++entries > _maxZipEntries) return false;
+    final local = _u32(cd, p + 42);
+    p += 46 + _u16(cd, p + 28) + _u16(cd, p + 30) + _u16(cd, p + 32);
+    if (p > cd.length || local == 0xFFFFFFFF || local + 30 > len) return false;
+    final h = _readAt(f, local, 30);
+    if (_u32(h, 0) != 0x04034b50) return false;
+    localBytes += _u16(h, 26) + _u16(h, 28);
+    if (localBytes > _maxLocalNameExtraBytes) return false;
+  }
+  return true;
+}
+
 /// Dosyadan okuyarak [archivePreview] üretir (bozuk dosyada null). Ayrı iş
 /// parçacığında çalışacak şekilde üst düzey bir işlevdir.
 Preview? zipDocumentPreview(String path, String ext, {bool long = false}) {
+  if (!zipDirectoryIsBounded(path)) return null;
   InputFileStream? input;
   try {
     input = InputFileStream(path); // dosya yoksa burada da atar
