@@ -102,7 +102,7 @@ class Sidebar extends StatelessWidget {
               ),
             ),
             _NavTile(
-              icon: Icons.inbox_rounded,
+              icon: Icons.inbox_outlined,
               label: 'Gelen Kutusu',
               count: state.inboxCount,
               highlight: state.inboxCount > 0,
@@ -110,7 +110,7 @@ class Sidebar extends StatelessWidget {
               onTap: () => _go(const Place.inbox()),
             ),
             _NavTile(
-              icon: Icons.folder_copy_rounded,
+              icon: Icons.folder_copy_outlined,
               label: 'Tüm dosyalar',
               count: state.totalCount,
               selected: state.place == const Place.all(),
@@ -147,7 +147,7 @@ class Sidebar extends StatelessWidget {
             ),
             const Divider(height: 1),
             _NavTile(
-              icon: Icons.delete_outline_rounded,
+              icon: Icons.delete_outline,
               label: 'Çöp Kutusu',
               count: state.trashCount,
               selected: state.place == const Place.trash(),
@@ -290,7 +290,7 @@ class _CategoryRow extends StatelessWidget {
                         ),
                 ),
                 Icon(
-                  selected ? Icons.folder_open_rounded : Icons.folder_rounded,
+                  selected ? Icons.folder_open_outlined : Icons.folder_outlined,
                   size: 22,
                   color: selected ? fg : cs.primary,
                 ),

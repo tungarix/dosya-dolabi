@@ -50,7 +50,7 @@ class FileView extends StatelessWidget {
                   children: [
                     for (final c in subs)
                       ActionChip(
-                        avatar: const Icon(Icons.folder_rounded, size: 20),
+                        avatar: const Icon(Icons.folder_outlined, size: 20),
                         label: Text(
                           c.totalFiles == 0
                               ? c.name
@@ -127,14 +127,18 @@ class _Hint extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cs.primaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           Icon(Icons.lightbulb_outline, color: cs.onPrimaryContainer),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: TextStyle(color: cs.onPrimaryContainer)),
+          // Şerit tam genişlikte, metin okunur satır uzunluğunda (~75 karakter).
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Text(text, style: TextStyle(color: cs.onPrimaryContainer)),
+            ),
           ),
         ],
       ),
@@ -158,19 +162,19 @@ class _Empty extends StatelessWidget {
           )
         : switch (state.place.section) {
             Section.inbox => (
-              Icons.inbox_rounded,
+              Icons.inbox_outlined,
               'Gelen Kutusu boş',
               'İndirdiğin ya da aldığın yeni PDF ve sunum dosyaları burada '
                   'görünür. Hepsini düzenledin!',
             ),
             Section.all => (
-              Icons.folder_open_rounded,
+              Icons.folder_open_outlined,
               'Dolap henüz boş',
               'Gelen Kutusu\'ndaki dosyaları bir kategoriye koyduğunda '
                   'burada görünür.',
             ),
             _ => (
-              Icons.folder_open_rounded,
+              Icons.folder_open_outlined,
               'Bu kategori boş',
               'Gelen Kutusu\'ndan dosya taşıyabilirsin.',
             ),
@@ -406,27 +410,34 @@ class _FileCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Ad ile ayrıntı bir grup (4px), eylem en altta.
                     Expanded(
-                      child: Text(
-                        file.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            file.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${formatSize(file.size)} · ${formatDate(file.modified)}',
+                            style: sub,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (showWhere)
+                            Text(
+                              state.whereIs(file),
+                              style: sub,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
                       ),
                     ),
-                    Text(
-                      '${formatSize(file.size)} · ${formatDate(file.modified)}',
-                      style: sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (showWhere)
-                      Text(
-                        state.whereIs(file),
-                        style: sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     if (!file.inLibrary && !state.selecting)
                       Align(
                         alignment: Alignment.centerLeft,
@@ -437,7 +448,7 @@ class _FileCard extends StatelessWidget {
                           ),
                           onPressed: () => moveDocs(context, state, [file]),
                           icon: const Icon(
-                            Icons.drive_file_move_rounded,
+                            Icons.drive_file_move_outlined,
                             size: 18,
                           ),
                           label: const Text('Kategoriye koy'),
@@ -513,13 +524,13 @@ class _FileRow extends StatelessWidget {
                   if (!file.inLibrary && compact)
                     IconButton.filledTonal(
                       tooltip: 'Kategoriye koy',
-                      icon: const Icon(Icons.drive_file_move_rounded),
+                      icon: const Icon(Icons.drive_file_move_outlined),
                       onPressed: () => moveDocs(context, state, [file]),
                     )
                   else if (!file.inLibrary)
                     FilledButton.tonalIcon(
                       onPressed: () => moveDocs(context, state, [file]),
-                      icon: const Icon(Icons.drive_file_move_rounded, size: 18),
+                      icon: const Icon(Icons.drive_file_move_outlined, size: 18),
                       label: const Text('Kategoriye koy'),
                     ),
                   _FileMenu(state: state, file: file),

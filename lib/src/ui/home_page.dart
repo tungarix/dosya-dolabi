@@ -460,7 +460,7 @@ class _SelectionBar extends StatelessWidget {
             ),
             IconButton.filled(
               tooltip: moveLabel,
-              icon: const Icon(Icons.drive_file_move_rounded),
+              icon: const Icon(Icons.drive_file_move_outlined),
               onPressed: chosen.isEmpty
                   ? null
                   : () => moveDocs(context, state, chosen),
@@ -475,7 +475,7 @@ class _SelectionBar extends StatelessWidget {
               onPressed: chosen.isEmpty
                   ? null
                   : () => moveDocs(context, state, chosen),
-              icon: const Icon(Icons.drive_file_move_rounded),
+              icon: const Icon(Icons.drive_file_move_outlined),
               label: Text(moveLabel),
             ),
             const SizedBox(width: 4),

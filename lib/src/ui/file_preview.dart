@@ -306,7 +306,7 @@ class _PreviewDialog extends StatelessWidget {
                           moveDocs(ownerContext, state, [file]);
                         }
                       },
-                      icon: const Icon(Icons.drive_file_move_rounded, size: 18),
+                      icon: const Icon(Icons.drive_file_move_outlined, size: 18),
                       label: const Text('Kategoriye koy'),
                     ),
                   FilledButton.icon(

@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 /// Kullanıcının göreceği dosya türü grupları.
+///
+/// Renkler beyaz etiket metniyle en az 4.5:1 verecek tonda (Slayt, Tablo ve
+/// Diğer önceki tonlarında 3:1 ile 4.4:1 arasındaydı).
 enum FileKind {
   pdf('PDF', Icons.picture_as_pdf_rounded, Color(0xFFD93A2B)),
-  slides('Slayt', Icons.slideshow_rounded, Color(0xFFE8710A)),
+  slides('Slayt', Icons.slideshow_rounded, Color(0xFFB45309)),
   document('Belge', Icons.description_rounded, Color(0xFF2B6CD9)),
-  sheet('Tablo', Icons.table_chart_rounded, Color(0xFF1E8E3E)),
+  sheet('Tablo', Icons.table_chart_rounded, Color(0xFF1A7F37)),
   image('Görsel', Icons.image_rounded, Color(0xFF8E44AD)),
   archive('Arşiv', Icons.folder_zip_rounded, Color(0xFF6D6D6D)),
-  other('Diğer', Icons.insert_drive_file_rounded, Color(0xFF607D8B));
+  other('Diğer', Icons.insert_drive_file_rounded, Color(0xFF546E7A));
 
   const FileKind(this.label, this.icon, this.color);
 

@@ -21,7 +21,7 @@ class TrashView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.delete_outline_rounded, size: 72, color: cs.outline),
+            Icon(Icons.delete_outline, size: 72, color: cs.outline),
             const SizedBox(height: 12),
             Text(
               'Çöp kutusu boş',
